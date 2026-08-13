@@ -8,6 +8,7 @@ declare global {
 }
 
 export function startIngestScheduler(intervalMs: number = FIVE_MINUTES_MS): void {
+  if (process.env.NEXT_PHASE === "phase-production-build") return;
   if (global.__claudeDashboardIngestStarted) return;
   global.__claudeDashboardIngestStarted = true;
 
