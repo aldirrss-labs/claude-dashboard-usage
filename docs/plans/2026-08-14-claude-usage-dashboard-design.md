@@ -29,6 +29,7 @@ A locally-hosted webapp that automatically tracks Claude Code token usage across
 ## Data pipeline (ingestion)
 
 - Runs as a `setInterval` job inside the same Next.js process (no separate OS cron, no file watcher) — one process to manage as a systemd unit.
+- Guarded against `next build`: static-generation workers import the root layout in parallel, and each would otherwise call the scheduler, causing concurrent SQLite writes (`SQLITE_BUSY`) and failing the build. The scheduler checks `process.env.NEXT_PHASE === "phase-production-build"` and no-ops during build.
 - **Interval: 5 minutes.** Chosen to balance freshness against resource use (decided over both 1-min and real-time/SSE alternatives — see rationale below).
 - Each run:
   1. Scan `~/.claude/projects/*/` for `.jsonl` files.
