@@ -76,7 +76,8 @@ function seedPricing(db: Database.Database): void {
 
 export function getDb(): Database.Database {
   if (dbInstance) return dbInstance;
-  const db = new Database(getDbPath());
+  const dbPath = process.env.CLAUDE_DASHBOARD_DB_PATH ?? getDbPath();
+  const db = new Database(dbPath);
   db.pragma("journal_mode = WAL");
   db.exec(SCHEMA);
   seedPricing(db);

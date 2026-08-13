@@ -1,3 +1,4 @@
+import "./test-db-setup";
 import { describe, it } from "node:test";
 import assert from "node:assert";
 import fs from "node:fs";
