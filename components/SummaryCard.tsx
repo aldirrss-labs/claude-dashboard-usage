@@ -1,15 +1,35 @@
+"use client";
+
+import { motion } from "framer-motion";
+import { AnimatedNumber } from "./AnimatedNumber";
+
 interface SummaryCardProps {
   label: string;
-  value: string;
+  value: number;
+  formatter?: (n: number) => string;
   hint?: string;
 }
 
-export function SummaryCard({ label, value, hint }: SummaryCardProps) {
+export function SummaryCard({ label, value, formatter, hint }: SummaryCardProps) {
   return (
-    <div className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-      <div className="text-sm text-neutral-500 dark:text-neutral-400">{label}</div>
-      <div className="mt-1 text-2xl font-semibold text-neutral-900 dark:text-neutral-50">{value}</div>
-      {hint && <div className="mt-1 text-xs text-neutral-400">{hint}</div>}
-    </div>
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      className="rounded-lg p-4"
+      style={{ background: "var(--surface-1)", border: "1px solid var(--line-hairline)" }}
+    >
+      <div className="text-xs font-medium uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+        {label}
+      </div>
+      <div className="mt-1.5 text-2xl font-semibold" style={{ color: "var(--text-primary)" }}>
+        <AnimatedNumber value={value} formatter={formatter} />
+      </div>
+      {hint && (
+        <div className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+          {hint}
+        </div>
+      )}
+    </motion.div>
   );
 }

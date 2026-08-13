@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import Link from "next/link";
 import { startIngestScheduler } from "@/lib/ingest-scheduler";
+import { Sidebar } from "@/components/Sidebar";
+import { PageTransition } from "@/components/PageTransition";
 import "./globals.css";
 
 startIngestScheduler();
@@ -23,25 +24,12 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">
-        <nav className="border-b border-neutral-200 dark:border-neutral-800">
-          <div className="mx-auto flex max-w-6xl items-center gap-6 px-8 py-3 text-sm">
-            <Link href="/" className="font-semibold">
-              Claude Usage
-            </Link>
-            <Link href="/projects" className="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100">
-              Projects
-            </Link>
-            <Link href="/settings" className="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100">
-              Settings
-            </Link>
-          </div>
-        </nav>
-        {children}
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+      <body className="flex h-full">
+        <Sidebar />
+        <div className="min-w-0 flex-1 overflow-y-auto">
+          <PageTransition>{children}</PageTransition>
+        </div>
       </body>
     </html>
   );

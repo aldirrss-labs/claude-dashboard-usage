@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { motion } from "framer-motion";
+import { SummaryCard } from "@/components/SummaryCard";
 
 interface ProjectDetail {
   slug: string;
@@ -37,63 +39,104 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<ProjectDetail | null | undefined>(undefined);
 
   useEffect(() => {
+    setProject(undefined);
     fetch(`/api/projects/${params.slug}`)
       .then((res) => (res.ok ? res.json() : Promise.resolve({ project: null })))
       .then((json) => setProject(json.project));
   }, [params.slug]);
 
-  if (project === undefined) return <div className="p-8 text-neutral-500">Loading…</div>;
-  if (project === null) return <div className="p-8 text-red-500">Project not found.</div>;
+  if (project === undefined) {
+    return (
+      <div className="p-8 text-sm" style={{ color: "var(--text-muted)" }}>
+        Loading…
+      </div>
+    );
+  }
+  if (project === null) {
+    return (
+      <div className="p-8 text-sm" style={{ color: "var(--text-primary)" }}>
+        Project not found.
+        <div className="mt-1 font-data text-xs" style={{ color: "var(--text-muted)" }}>
+          slug: {params.slug}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-6xl space-y-6 p-8">
       <div>
-        <h1 className="text-xl font-semibold">{project.displayName}</h1>
-        <p className="text-sm text-neutral-500">{project.displayPath}</p>
+        <h1 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
+          {project.displayName}
+        </h1>
+        <p className="font-data text-sm" style={{ color: "var(--text-muted)" }}>
+          {project.displayPath}
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <div className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
-          <div className="text-sm text-neutral-500">Total tokens</div>
-          <div className="text-xl font-semibold">{project.totalTokens.toLocaleString()}</div>
-        </div>
-        <div className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
-          <div className="text-sm text-neutral-500">Estimated cost</div>
-          <div className="text-xl font-semibold">${project.costUsd.toFixed(2)}</div>
-        </div>
-        <div className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
-          <div className="text-sm text-neutral-500">Sessions</div>
-          <div className="text-xl font-semibold">{project.sessionCount}</div>
-        </div>
-        <div className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
-          <div className="text-sm text-neutral-500">Last active</div>
-          <div className="text-xl font-semibold">{formatDate(project.lastActiveAt)}</div>
-        </div>
+        <SummaryCard label="Total tokens" value={project.totalTokens} />
+        <SummaryCard label="Estimated cost" value={project.costUsd} formatter={(n) => `$${n.toFixed(2)}`} />
+        <SummaryCard label="Sessions" value={project.sessionCount} />
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="rounded-lg p-4"
+          style={{ background: "var(--surface-1)", border: "1px solid var(--line-hairline)" }}
+        >
+          <div className="text-xs font-medium uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+            Last active
+          </div>
+          <div className="font-data mt-1.5 text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
+            {formatDate(project.lastActiveAt)}
+          </div>
+        </motion.div>
       </div>
 
       <div>
-        <h2 className="mb-2 text-sm font-medium text-neutral-500">Sessions</h2>
+        <h2 className="mb-2 text-xs font-medium uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+          Sessions
+        </h2>
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-neutral-200 text-left text-neutral-500 dark:border-neutral-800">
-              <th className="py-2 pr-4">Session</th>
-              <th className="py-2 pr-4 whitespace-nowrap">Started</th>
-              <th className="py-2 pr-4 whitespace-nowrap">Ended</th>
-              <th className="py-2 pr-4 whitespace-nowrap">Messages</th>
-              <th className="py-2 pr-4 whitespace-nowrap">Tokens</th>
-              <th className="py-2 whitespace-nowrap">Cost</th>
+            <tr style={{ borderBottom: "1px solid var(--line-hairline)", color: "var(--text-muted)" }}>
+              <th className="py-2 pr-4 text-left text-xs font-medium uppercase tracking-wide">Session</th>
+              <th className="py-2 pr-4 text-left text-xs font-medium uppercase tracking-wide whitespace-nowrap">Started</th>
+              <th className="py-2 pr-4 text-left text-xs font-medium uppercase tracking-wide whitespace-nowrap">Ended</th>
+              <th className="py-2 pr-4 text-left text-xs font-medium uppercase tracking-wide whitespace-nowrap">Messages</th>
+              <th className="py-2 pr-4 text-left text-xs font-medium uppercase tracking-wide whitespace-nowrap">Tokens</th>
+              <th className="py-2 text-left text-xs font-medium uppercase tracking-wide whitespace-nowrap">Cost</th>
             </tr>
           </thead>
           <tbody>
-            {project.sessions.map((s) => (
-              <tr key={s.id} className="border-b border-neutral-100 dark:border-neutral-900">
-                <td className="py-2 pr-4 font-mono text-xs">{s.id.slice(0, 8)}</td>
-                <td className="py-2 pr-4 whitespace-nowrap text-neutral-500">{formatDate(s.startedAt)}</td>
-                <td className="py-2 pr-4 whitespace-nowrap text-neutral-500">{formatDate(s.endedAt)}</td>
-                <td className="py-2 pr-4 whitespace-nowrap">{s.messageCount}</td>
-                <td className="py-2 pr-4 whitespace-nowrap">{s.totalTokens.toLocaleString()}</td>
-                <td className="py-2 whitespace-nowrap">${s.costUsd.toFixed(2)}</td>
-              </tr>
+            {project.sessions.map((s, index) => (
+              <motion.tr
+                key={s.id}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.2, delay: Math.min(index * 0.02, 0.4) }}
+                style={{ borderBottom: "1px solid var(--line-hairline)" }}
+              >
+                <td className="font-data py-2 pr-4 text-xs" style={{ color: "var(--text-secondary)" }}>
+                  {s.id.slice(0, 8)}
+                </td>
+                <td className="font-data py-2 pr-4 whitespace-nowrap text-xs" style={{ color: "var(--text-muted)" }}>
+                  {formatDate(s.startedAt)}
+                </td>
+                <td className="font-data py-2 pr-4 whitespace-nowrap text-xs" style={{ color: "var(--text-muted)" }}>
+                  {formatDate(s.endedAt)}
+                </td>
+                <td className="font-data py-2 pr-4 whitespace-nowrap" style={{ color: "var(--text-primary)" }}>
+                  {s.messageCount}
+                </td>
+                <td className="font-data py-2 pr-4 whitespace-nowrap" style={{ color: "var(--text-primary)" }}>
+                  {s.totalTokens.toLocaleString()}
+                </td>
+                <td className="font-data py-2 whitespace-nowrap" style={{ color: "var(--text-primary)" }}>
+                  ${s.costUsd.toFixed(2)}
+                </td>
+              </motion.tr>
             ))}
           </tbody>
         </table>

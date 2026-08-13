@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { motion } from "framer-motion";
 
 interface ProjectListRow {
   slug: string;
@@ -44,13 +45,19 @@ export function ProjectTable({ projects }: { projects: ProjectListRow[] }) {
     <div className="space-y-3">
       <div className="flex items-center gap-3">
         <input
-          className="flex-1 rounded border border-neutral-300 px-3 py-1.5 text-sm dark:border-neutral-700 dark:bg-neutral-900"
+          className="flex-1 rounded border px-3 py-1.5 text-sm outline-none transition-colors focus:border-transparent"
+          style={{
+            borderColor: "var(--line-hairline)",
+            background: "var(--surface-1)",
+            color: "var(--text-primary)",
+          }}
           placeholder="Search projects…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
         <select
-          className="rounded border border-neutral-300 bg-white px-2 py-1.5 text-sm dark:border-neutral-700 dark:bg-neutral-900"
+          className="rounded border px-2 py-1.5 text-sm"
+          style={{ borderColor: "var(--line-hairline)", background: "var(--surface-1)", color: "var(--text-primary)" }}
           value={sortKey}
           onChange={(e) => setSortKey(e.target.value as SortKey)}
         >
@@ -62,28 +69,48 @@ export function ProjectTable({ projects }: { projects: ProjectListRow[] }) {
 
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-neutral-200 text-left text-neutral-500 dark:border-neutral-800">
-            <th className="py-2 pr-4">Project</th>
-            <th className="py-2 pr-4 whitespace-nowrap">Tokens</th>
-            <th className="py-2 pr-4 whitespace-nowrap">Cost</th>
-            <th className="py-2 pr-4 whitespace-nowrap">Sessions</th>
-            <th className="py-2 whitespace-nowrap">Last active</th>
+          <tr className="text-left" style={{ borderBottom: "1px solid var(--line-hairline)", color: "var(--text-muted)" }}>
+            <th className="py-2 pr-4 text-xs font-medium uppercase tracking-wide">Project</th>
+            <th className="py-2 pr-4 whitespace-nowrap text-xs font-medium uppercase tracking-wide">Tokens</th>
+            <th className="py-2 pr-4 whitespace-nowrap text-xs font-medium uppercase tracking-wide">Cost</th>
+            <th className="py-2 pr-4 whitespace-nowrap text-xs font-medium uppercase tracking-wide">Sessions</th>
+            <th className="py-2 whitespace-nowrap text-xs font-medium uppercase tracking-wide">Last active</th>
           </tr>
         </thead>
         <tbody>
-          {filtered.map((p) => (
-            <tr key={p.slug} className="border-b border-neutral-100 dark:border-neutral-900">
+          {filtered.map((p, index) => (
+            <motion.tr
+              key={p.slug}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.2, delay: Math.min(index * 0.02, 0.4) }}
+              style={{ borderBottom: "1px solid var(--line-hairline)" }}
+            >
               <td className="py-2 pr-4">
-                <Link href={`/projects/${p.slug}`} className="font-medium text-indigo-600 hover:underline dark:text-indigo-400">
+                <Link
+                  href={`/projects/${p.slug}`}
+                  className="font-medium hover:underline"
+                  style={{ color: "var(--accent-500)" }}
+                >
                   {p.displayName}
                 </Link>
-                <div className="text-xs text-neutral-400">{p.displayPath}</div>
+                <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  {p.displayPath}
+                </div>
               </td>
-              <td className="py-2 pr-4 whitespace-nowrap">{p.totalTokens.toLocaleString()}</td>
-              <td className="py-2 pr-4 whitespace-nowrap">${p.costUsd.toFixed(2)}</td>
-              <td className="py-2 pr-4 whitespace-nowrap">{p.sessionCount}</td>
-              <td className="py-2 whitespace-nowrap text-neutral-500">{formatDate(p.lastActiveAt)}</td>
-            </tr>
+              <td className="font-data py-2 pr-4 whitespace-nowrap" style={{ color: "var(--text-primary)" }}>
+                {p.totalTokens.toLocaleString()}
+              </td>
+              <td className="font-data py-2 pr-4 whitespace-nowrap" style={{ color: "var(--text-primary)" }}>
+                ${p.costUsd.toFixed(2)}
+              </td>
+              <td className="font-data py-2 pr-4 whitespace-nowrap" style={{ color: "var(--text-primary)" }}>
+                {p.sessionCount}
+              </td>
+              <td className="font-data py-2 whitespace-nowrap text-xs" style={{ color: "var(--text-muted)" }}>
+                {formatDate(p.lastActiveAt)}
+              </td>
+            </motion.tr>
           ))}
         </tbody>
       </table>

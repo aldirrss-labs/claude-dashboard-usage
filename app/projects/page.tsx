@@ -22,11 +22,19 @@ export default function ProjectsPage() {
       .then((json) => setProjects(json.projects));
   }, []);
 
-  if (!projects) return <div className="p-8 text-neutral-500">Loading projects…</div>;
+  if (!projects) {
+    return (
+      <div className="p-8 text-sm" style={{ color: "var(--text-muted)" }}>
+        Loading projects…
+      </div>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-6xl space-y-6 p-8">
-      <h1 className="text-xl font-semibold">Projects</h1>
+      <h1 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
+        Projects
+      </h1>
       <ProjectTable projects={projects} />
     </main>
   );

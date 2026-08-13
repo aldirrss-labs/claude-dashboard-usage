@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 
 interface PricingRow {
   model: string;
@@ -54,50 +55,73 @@ export default function SettingsPage() {
   return (
     <main className="mx-auto max-w-4xl space-y-6 p-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Settings</h1>
-        <button
+        <h1 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
+          Settings
+        </h1>
+        <motion.button
+          whileTap={{ scale: 0.97 }}
           onClick={handleSync}
           disabled={syncing}
-          className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
+          className="rounded px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+          style={{ background: "var(--accent-500)" }}
         >
           {syncing ? "Syncing…" : "Sync Pricing"}
-        </button>
+        </motion.button>
       </div>
 
-      {syncMessage && <p className="text-sm text-neutral-500">{syncMessage}</p>}
+      {syncMessage && (
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+          {syncMessage}
+        </p>
+      )}
 
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-neutral-200 text-left text-neutral-500 dark:border-neutral-800">
-            <th className="py-2 pr-4">Model</th>
-            <th className="py-2 pr-4 whitespace-nowrap">Input $/1M</th>
-            <th className="py-2 pr-4 whitespace-nowrap">Cache write $/1M</th>
-            <th className="py-2 pr-4 whitespace-nowrap">Cache read $/1M</th>
-            <th className="py-2 pr-4 whitespace-nowrap">Output $/1M</th>
-            <th className="py-2 pr-4 whitespace-nowrap">Source</th>
+          <tr style={{ borderBottom: "1px solid var(--line-hairline)", color: "var(--text-muted)" }}>
+            <th className="py-2 pr-4 text-left text-xs font-medium uppercase tracking-wide">Model</th>
+            <th className="py-2 pr-4 text-left text-xs font-medium uppercase tracking-wide whitespace-nowrap">
+              Input $/1M
+            </th>
+            <th className="py-2 pr-4 text-left text-xs font-medium uppercase tracking-wide whitespace-nowrap">
+              Cache write $/1M
+            </th>
+            <th className="py-2 pr-4 text-left text-xs font-medium uppercase tracking-wide whitespace-nowrap">
+              Cache read $/1M
+            </th>
+            <th className="py-2 pr-4 text-left text-xs font-medium uppercase tracking-wide whitespace-nowrap">
+              Output $/1M
+            </th>
+            <th className="py-2 pr-4 text-left text-xs font-medium uppercase tracking-wide whitespace-nowrap">Source</th>
             <th className="py-2"></th>
           </tr>
         </thead>
         <tbody>
           {pricing.map((row) => (
-            <tr key={row.model} className="border-b border-neutral-100 dark:border-neutral-900">
-              <td className="py-2 pr-4 font-medium">{row.model}</td>
+            <tr key={row.model} style={{ borderBottom: "1px solid var(--line-hairline)" }}>
+              <td className="py-2 pr-4 font-medium" style={{ color: "var(--text-primary)" }}>
+                {row.model}
+              </td>
               {(["input_price", "cache_write_price", "cache_read_price", "output_price"] as const).map((field) => (
                 <td key={field} className="py-2 pr-4">
                   <input
                     type="number"
                     step="0.01"
-                    className="w-20 rounded border border-neutral-300 px-1.5 py-0.5 dark:border-neutral-700 dark:bg-neutral-900"
+                    className="font-data w-20 rounded border px-1.5 py-0.5 outline-none"
+                    style={{ borderColor: "var(--line-hairline)", background: "var(--surface-1)", color: "var(--text-primary)" }}
                     value={row[field]}
                     onChange={(e) => handleFieldChange(row.model, field, Number(e.target.value))}
                   />
                 </td>
               ))}
-              <td className="py-2 pr-4 whitespace-nowrap text-xs text-neutral-400">
+              <td className="font-data py-2 pr-4 whitespace-nowrap text-xs" style={{ color: "var(--text-muted)" }}>
                 {row.source} · {row.updated_at}
               </td>
               <td className="py-2">
-                <button onClick={() => handleSave(row)} className="text-xs text-indigo-600 hover:underline dark:text-indigo-400">
+                <button
+                  onClick={() => handleSave(row)}
+                  className="text-xs font-medium hover:underline"
+                  style={{ color: "var(--accent-500)" }}
+                >
                   Save
                 </button>
               </td>

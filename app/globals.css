@@ -1,8 +1,25 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fcfcfb;
+  --foreground: #0b0b0b;
+
+  /* Command-center theme tokens (light mode only) */
+  --ink-950: #0a0e14;
+  --ink-900: #10161f;
+  --ink-800: #1a2230;
+  --ink-border: #26303f;
+
+  --surface-0: #fcfcfb;
+  --surface-1: #ffffff;
+
+  --accent-500: #2a78d6;
+  --accent-600: #1c5cab;
+
+  --line-hairline: #e1e0d9;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #898781;
 }
 
 @theme inline {
@@ -12,15 +29,13 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.font-data {
+  font-family: var(--font-geist-mono), ui-monospace, "SF Mono", "JetBrains Mono", monospace;
+  font-variant-numeric: tabular-nums;
 }

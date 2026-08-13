@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { SummaryCard } from "@/components/SummaryCard";
 import { UsageTimeSeriesChart } from "@/components/UsageTimeSeriesChart";
 import { ModelBreakdownChart } from "@/components/ModelBreakdownChart";
@@ -39,15 +40,18 @@ export default function DashboardPage() {
   }, [rangeDays]);
 
   if (!data) {
-    return <div className="p-8 text-neutral-500">Loading dashboard…</div>;
+    return <div className="p-8 text-sm" style={{ color: "var(--text-muted)" }}>Loading dashboard…</div>;
   }
 
   return (
     <main className="mx-auto max-w-6xl space-y-6 p-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Claude Code Usage Dashboard</h1>
+        <h1 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
+          Dashboard
+        </h1>
         <select
-          className="rounded border border-neutral-300 bg-white px-2 py-1 text-sm dark:border-neutral-700 dark:bg-neutral-900"
+          className="rounded border px-2 py-1 text-sm"
+          style={{ borderColor: "var(--line-hairline)", background: "var(--surface-1)", color: "var(--text-primary)" }}
           value={rangeDays}
           onChange={(e) => setRangeDays(Number(e.target.value))}
         >
@@ -58,21 +62,45 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <SummaryCard label="Total tokens" value={data.summary.totalTokens.toLocaleString()} />
-        <SummaryCard label="Estimated cost" value={`$${data.summary.totalCostUsd.toFixed(2)}`} />
-        <SummaryCard label="Active projects" value={String(data.summary.activeProjectCount)} />
-        <SummaryCard label="Cache efficiency" value={`${data.summary.cacheEfficiencyPct.toFixed(1)}%`} />
+        <SummaryCard label="Total tokens" value={data.summary.totalTokens} />
+        <SummaryCard
+          label="Estimated cost"
+          value={data.summary.totalCostUsd}
+          formatter={(n) => `$${n.toFixed(2)}`}
+        />
+        <SummaryCard label="Active projects" value={data.summary.activeProjectCount} />
+        <SummaryCard
+          label="Cache efficiency"
+          value={data.summary.cacheEfficiencyPct}
+          formatter={(n) => `${n.toFixed(1)}%`}
+        />
       </div>
 
-      <div className="rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-        <h2 className="mb-2 text-sm font-medium text-neutral-500">Usage over time</h2>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3, delay: 0.1 }}
+        className="rounded-lg p-4"
+        style={{ background: "var(--surface-1)", border: "1px solid var(--line-hairline)" }}
+      >
+        <h2 className="mb-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+          Usage over time
+        </h2>
         <UsageTimeSeriesChart data={data.timeSeries} />
-      </div>
+      </motion.div>
 
-      <div className="rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-        <h2 className="mb-2 text-sm font-medium text-neutral-500">Usage by model</h2>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3, delay: 0.15 }}
+        className="rounded-lg p-4"
+        style={{ background: "var(--surface-1)", border: "1px solid var(--line-hairline)" }}
+      >
+        <h2 className="mb-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+          Usage by model
+        </h2>
         <ModelBreakdownChart data={data.modelBreakdown} />
-      </div>
+      </motion.div>
     </main>
   );
 }

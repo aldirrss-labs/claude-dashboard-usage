@@ -42,13 +42,23 @@ export function UsageTimeSeriesChart({ data }: { data: TimeSeriesPoint[] }) {
       <div className="mb-2 flex justify-end gap-1 text-xs">
         <button
           onClick={() => setMode("absolute")}
-          className={`rounded px-2 py-1 ${mode === "absolute" ? "bg-neutral-200 font-medium dark:bg-neutral-700" : "text-neutral-500"}`}
+          className="rounded px-2 py-1"
+          style={
+            mode === "absolute"
+              ? { background: "var(--surface-0)", fontWeight: 500, color: "var(--text-primary)", border: "1px solid var(--line-hairline)" }
+              : { color: "var(--text-muted)" }
+          }
         >
           Stacked
         </button>
         <button
           onClick={() => setMode("percentage")}
-          className={`rounded px-2 py-1 ${mode === "percentage" ? "bg-neutral-200 font-medium dark:bg-neutral-700" : "text-neutral-500"}`}
+          className="rounded px-2 py-1"
+          style={
+            mode === "percentage"
+              ? { background: "var(--surface-0)", fontWeight: 500, color: "var(--text-primary)", border: "1px solid var(--line-hairline)" }
+              : { color: "var(--text-muted)" }
+          }
         >
           100% Stacked
         </button>
