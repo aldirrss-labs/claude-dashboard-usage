@@ -54,7 +54,7 @@ CREATE TABLE ingest_state (
 CREATE TABLE projects (
   id INTEGER PRIMARY KEY,
   slug TEXT UNIQUE NOT NULL,       -- raw folder slug, e.g. "-mnt-data-Project-WEB-artist-catalog"
-  display_path TEXT NOT NULL,      -- decoded absolute path
+  display_path TEXT NOT NULL,      -- absolute path, read from the `cwd` field inside the JSONL lines (slug-to-path decoding is lossy: dashes are both the path separator AND can be literal characters in a folder name, e.g. "artist-catalog")
   display_name TEXT NOT NULL,      -- editable label, defaults to last path segment
   first_seen_at TEXT,
   last_active_at TEXT
