@@ -14,7 +14,8 @@ interface ProjectListRow {
   sessionCount: number;
 }
 
-type SortKey = "totalTokens" | "costUsd" | "lastActiveAt";
+type SortKey = "totalTokens" | "costUsd" | "lastActiveAt" | "displayName" | "sessionCount";
+type SortDirection = "asc" | "desc";
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
@@ -29,17 +30,29 @@ function formatDate(iso: string | null): string {
 
 export function ProjectTable({ projects }: { projects: ProjectListRow[] }) {
   const [search, setSearch] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("totalTokens");
+  const [sortKey, setSortKey] = useState<SortKey>("lastActiveAt");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+
+  function handleSortKeyChange(next: SortKey) {
+    if (next === sortKey) {
+      setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(next);
+      setSortDirection("desc");
+    }
+  }
 
   const filtered = useMemo(() => {
     const term = search.toLowerCase();
+    const dir = sortDirection === "asc" ? 1 : -1;
     return projects
       .filter((p) => p.displayName.toLowerCase().includes(term) || p.displayPath.toLowerCase().includes(term))
       .sort((a, b) => {
-        if (sortKey === "lastActiveAt") return (b.lastActiveAt ?? "").localeCompare(a.lastActiveAt ?? "");
-        return b[sortKey] - a[sortKey];
+        if (sortKey === "lastActiveAt") return dir * (a.lastActiveAt ?? "").localeCompare(b.lastActiveAt ?? "");
+        if (sortKey === "displayName") return dir * a.displayName.localeCompare(b.displayName);
+        return dir * (a[sortKey] - b[sortKey]);
       });
-  }, [projects, search, sortKey]);
+  }, [projects, search, sortKey, sortDirection]);
 
   return (
     <div className="space-y-3">
@@ -59,12 +72,22 @@ export function ProjectTable({ projects }: { projects: ProjectListRow[] }) {
           className="rounded border px-2 py-1.5 text-sm"
           style={{ borderColor: "var(--line-hairline)", background: "var(--surface-1)", color: "var(--text-primary)" }}
           value={sortKey}
-          onChange={(e) => setSortKey(e.target.value as SortKey)}
+          onChange={(e) => handleSortKeyChange(e.target.value as SortKey)}
         >
+          <option value="lastActiveAt">Sort by last active</option>
           <option value="totalTokens">Sort by tokens</option>
           <option value="costUsd">Sort by cost</option>
-          <option value="lastActiveAt">Sort by last active</option>
+          <option value="sessionCount">Sort by sessions</option>
+          <option value="displayName">Sort by name</option>
         </select>
+        <button
+          onClick={() => setSortDirection((d) => (d === "asc" ? "desc" : "asc"))}
+          className="rounded border px-2 py-1.5 text-sm"
+          style={{ borderColor: "var(--line-hairline)", background: "var(--surface-1)", color: "var(--text-primary)" }}
+          title={sortDirection === "asc" ? "Ascending" : "Descending"}
+        >
+          {sortDirection === "asc" ? "↑" : "↓"}
+        </button>
       </div>
 
       <table className="w-full text-sm">

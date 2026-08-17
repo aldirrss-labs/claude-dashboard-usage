@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { SummaryCard } from "@/components/SummaryCard";
 
@@ -65,6 +66,13 @@ export default function ProjectDetailPage() {
 
   return (
     <main className="mx-auto max-w-6xl space-y-6 p-8">
+      <Link
+        href="/projects"
+        className="inline-flex items-center text-sm hover:underline"
+        style={{ color: "var(--accent-500)" }}
+      >
+        ← Kembali ke Projects
+      </Link>
       <div>
         <h1 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
           {project.displayName}

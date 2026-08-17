@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { SummaryCard } from "@/components/SummaryCard";
 import { UsageTimeSeriesChart } from "@/components/UsageTimeSeriesChart";
 import { ModelBreakdownChart } from "@/components/ModelBreakdownChart";
+import { SyncButton } from "@/components/SyncButton";
 
 interface SummaryResponse {
   summary: { totalTokens: number; totalCostUsd: number; activeProjectCount: number; cacheEfficiencyPct: number };
@@ -39,6 +40,12 @@ export default function DashboardPage() {
     };
   }, [rangeDays]);
 
+  function refetch() {
+    fetch(`/api/summary?rangeDays=${rangeDays}&bucket=day`)
+      .then((res) => res.json())
+      .then((json) => setData(json));
+  }
+
   if (!data) {
     return <div className="p-8 text-sm" style={{ color: "var(--text-muted)" }}>Loading dashboard…</div>;
   }
@@ -49,16 +56,19 @@ export default function DashboardPage() {
         <h1 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
           Dashboard
         </h1>
-        <select
-          className="rounded border px-2 py-1 text-sm"
-          style={{ borderColor: "var(--line-hairline)", background: "var(--surface-1)", color: "var(--text-primary)" }}
-          value={rangeDays}
-          onChange={(e) => setRangeDays(Number(e.target.value))}
-        >
-          <option value={7}>Last 7 days</option>
-          <option value={30}>Last 30 days</option>
-          <option value={90}>Last 90 days</option>
-        </select>
+        <div className="flex items-center gap-3">
+          <SyncButton onSynced={refetch} />
+          <select
+            className="rounded border px-2 py-1 text-sm"
+            style={{ borderColor: "var(--line-hairline)", background: "var(--surface-1)", color: "var(--text-primary)" }}
+            value={rangeDays}
+            onChange={(e) => setRangeDays(Number(e.target.value))}
+          >
+            <option value={7}>Last 7 days</option>
+            <option value={30}>Last 30 days</option>
+            <option value={90}>Last 90 days</option>
+          </select>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">

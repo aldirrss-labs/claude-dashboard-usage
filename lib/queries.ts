@@ -76,6 +76,14 @@ function costForRow(
   );
 }
 
+export function getLastSyncedAt(): string | null {
+  const db = getDb();
+  const row = db.prepare(`SELECT MAX(updated_at) as lastSyncedAt FROM ingest_state`).get() as {
+    lastSyncedAt: string | null;
+  };
+  return row.lastSyncedAt;
+}
+
 export function getDashboardSummary(rangeDays: number): DashboardSummary {
   const db = getDb();
   const pricing = loadPricing();

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { ProjectTable } from "@/components/ProjectTable";
+import { SyncButton } from "@/components/SyncButton";
 
 interface ProjectListRow {
   slug: string;
@@ -16,11 +17,15 @@ interface ProjectListRow {
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<ProjectListRow[] | null>(null);
 
-  useEffect(() => {
+  const refetch = useCallback(() => {
     fetch("/api/projects")
       .then((res) => res.json())
       .then((json) => setProjects(json.projects));
   }, []);
+
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
 
   if (!projects) {
     return (
@@ -32,9 +37,12 @@ export default function ProjectsPage() {
 
   return (
     <main className="mx-auto max-w-6xl space-y-6 p-8">
-      <h1 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
-        Projects
-      </h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
+          Projects
+        </h1>
+        <SyncButton onSynced={refetch} />
+      </div>
       <ProjectTable projects={projects} />
     </main>
   );
