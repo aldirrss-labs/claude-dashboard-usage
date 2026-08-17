@@ -19,3 +19,9 @@ export function getDbPath(): string {
 export function decodeProjectSlug(slug: string): string {
   return slug.replace(/-/g, "/");
 }
+
+const WORKTREE_SUFFIX_RE = /--claude-worktrees-.*$/;
+
+export function normalizeCanonicalPath(displayPath: string): string {
+  return displayPath.replace(WORKTREE_SUFFIX_RE, "");
+}

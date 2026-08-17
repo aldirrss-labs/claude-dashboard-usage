@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { getDb } from "./db";
-import { getClaudeProjectsDir, decodeProjectSlug } from "./paths";
+import { getClaudeProjectsDir, decodeProjectSlug, normalizeCanonicalPath } from "./paths";
 
 export interface ParsedUsageLine {
   sessionId: string;
@@ -67,14 +67,35 @@ function listProjectJsonlFiles(projectsDir: string): Array<{ slug: string; fileP
 }
 
 function ensureProject(db: ReturnType<typeof getDb>, slug: string, cwd: string | null): number {
-  const existing = db.prepare("SELECT id FROM projects WHERE slug = ?").get(slug) as { id: number } | undefined;
-  if (existing) return existing.id;
+  const existingBySlug = db.prepare("SELECT id FROM projects WHERE slug = ?").get(slug) as
+    | { id: number }
+    | undefined;
+  if (existingBySlug) return existingBySlug.id;
+
+  const pathSource = cwd ? "cwd" : "slug";
   const displayPath = cwd ?? decodeProjectSlug(slug);
   const displayName = displayPath.split("/").filter(Boolean).pop() ?? slug;
+
+  if (pathSource === "cwd") {
+    const canonicalPath = normalizeCanonicalPath(displayPath);
+    const existingByCanonical = db
+      .prepare("SELECT id FROM projects WHERE canonical_path = ? AND path_source = 'cwd'")
+      .get(canonicalPath) as { id: number } | undefined;
+    if (existingByCanonical) return existingByCanonical.id;
+
+    const info = db
+      .prepare(
+        `INSERT INTO projects (slug, display_path, display_name, canonical_path, path_source, first_seen_at, last_active_at)
+         VALUES (?, ?, ?, ?, 'cwd', datetime('now'), datetime('now'))`
+      )
+      .run(slug, displayPath, displayName, canonicalPath);
+    return Number(info.lastInsertRowid);
+  }
+
   const info = db
     .prepare(
-      `INSERT INTO projects (slug, display_path, display_name, first_seen_at, last_active_at)
-       VALUES (?, ?, ?, datetime('now'), datetime('now'))`
+      `INSERT INTO projects (slug, display_path, display_name, canonical_path, path_source, first_seen_at, last_active_at)
+       VALUES (?, ?, ?, NULL, 'slug', datetime('now'), datetime('now'))`
     )
     .run(slug, displayPath, displayName);
   return Number(info.lastInsertRowid);

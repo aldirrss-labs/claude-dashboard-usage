@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS projects (
   slug TEXT UNIQUE NOT NULL,
   display_path TEXT NOT NULL,
   display_name TEXT NOT NULL,
+  canonical_path TEXT,
+  path_source TEXT NOT NULL DEFAULT 'cwd',
   first_seen_at TEXT,
   last_active_at TEXT
 );
@@ -63,6 +65,24 @@ CREATE TABLE IF NOT EXISTS budget_limits (
 );
 `;
 
+function migrateProjectsTable(db: Database.Database): void {
+  const columns = db.prepare(`PRAGMA table_info(projects)`).all() as Array<{ name: string }>;
+  const columnNames = new Set(columns.map((c) => c.name));
+
+  if (!columnNames.has("canonical_path")) {
+    db.exec(`ALTER TABLE projects ADD COLUMN canonical_path TEXT`);
+  }
+  if (!columnNames.has("path_source")) {
+    db.exec(`ALTER TABLE projects ADD COLUMN path_source TEXT NOT NULL DEFAULT 'cwd'`);
+  }
+
+  db.exec(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_canonical_path
+       ON projects(canonical_path)
+       WHERE path_source = 'cwd'`
+  );
+}
+
 function seedPricing(db: Database.Database): void {
   const insert = db.prepare(
     `INSERT OR IGNORE INTO model_pricing (model, input_price, cache_write_price, cache_read_price, output_price, updated_at, source)
@@ -80,6 +100,7 @@ export function getDb(): Database.Database {
   const db = new Database(dbPath);
   db.pragma("journal_mode = WAL");
   db.exec(SCHEMA);
+  migrateProjectsTable(db);
   seedPricing(db);
   dbInstance = db;
   return db;
