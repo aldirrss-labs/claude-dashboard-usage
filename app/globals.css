@@ -9,6 +9,17 @@
 @source inline("{fill,stroke,bg,text,border}-{blue,orange,emerald,amber,gray}-{50,100,200,300,400,500,600,700,900}");
 @source inline("{fill,stroke,bg,text,border}-{blue,orange,emerald,amber,gray}-{50,100,200,300,400,500,600,700,900}/{10,20,30}");
 
+/*
+  Tremor's own `tremor-*` utility classes (background, border, content,
+  radius, shadow) live inside node_modules/@tremor and are never scanned
+  by Tailwind v4's default source detection, so even with the tokens
+  defined below, the utilities themselves would never be generated.
+*/
+@source inline("{bg,text,border,ring,divide}-tremor-{brand,brand-default,brand-emphasis,brand-inverted,brand-muted,brand-subtle,brand-faint,background-default,background-defualt,background-muted,background-subtle,background-emphasis,border-default,content,content-default,content-subtle,content-emphasis,content-strong,content-inverted}");
+@source inline("rounded-tremor-{small,default,full}");
+@source inline("shadow-tremor-{card,dropdown,input}");
+@source inline("text-tremor-{label,default}");
+
 :root {
   --background: #f7f8fa;
   --foreground: #0b0b0b;
@@ -41,6 +52,48 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /*
+    Tremor's own components (tooltips, cards, dropdowns) reference a
+    `tremor-*` design-token namespace that isn't defined anywhere by
+    default — Tailwind v4 silently drops any utility whose token is
+    missing, which is why the chart tooltip background rendered fully
+    transparent. Map every token Tremor references to this app's
+    existing light theme.
+  */
+  --color-tremor-brand: var(--accent-500);
+  --color-tremor-brand-default: var(--accent-500);
+  --color-tremor-brand-emphasis: var(--accent-600);
+  --color-tremor-brand-inverted: #ffffff;
+  --color-tremor-brand-muted: var(--accent-100);
+  --color-tremor-brand-subtle: var(--accent-100);
+  --color-tremor-brand-faint: var(--accent-100);
+
+  --color-tremor-background-default: #ffffff;
+  --color-tremor-background-defualt: #ffffff;
+  --color-tremor-background-muted: var(--surface-0);
+  --color-tremor-background-subtle: var(--surface-0);
+  --color-tremor-background-emphasis: var(--text-secondary);
+
+  --color-tremor-border-default: var(--line-hairline);
+
+  --color-tremor-content: var(--text-secondary);
+  --color-tremor-content-default: var(--text-secondary);
+  --color-tremor-content-subtle: var(--text-muted);
+  --color-tremor-content-emphasis: var(--text-primary);
+  --color-tremor-content-strong: var(--text-primary);
+  --color-tremor-content-inverted: #ffffff;
+
+  --radius-tremor-small: 0.375rem;
+  --radius-tremor-default: 0.5rem;
+  --radius-tremor-full: 9999px;
+
+  --shadow-tremor-card: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px -1px rgba(0,0,0,0.1);
+  --shadow-tremor-dropdown: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
+  --shadow-tremor-input: 0 1px 2px 0 rgba(0,0,0,0.05);
+
+  --text-tremor-label: 0.75rem;
+  --text-tremor-default: 0.875rem;
 }
 
 body {
