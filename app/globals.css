@@ -1,25 +1,39 @@
 @import "tailwindcss";
 
+/*
+  Tremor generates its chart color classes dynamically at runtime
+  (e.g. `fill-${color}-500`), so Tailwind v4's static source scanner
+  can never discover them. Explicitly source the shades Tremor charts
+  use, for every color this app passes to a Tremor `colors` prop.
+*/
+@source inline("{fill,stroke,bg,text,border}-{blue,orange,emerald,amber,gray}-{50,100,200,300,400,500,600,700,900}");
+@source inline("{fill,stroke,bg,text,border}-{blue,orange,emerald,amber,gray}-{50,100,200,300,400,500,600,700,900}/{10,20,30}");
+
 :root {
-  --background: #fcfcfb;
+  --background: #f7f8fa;
   --foreground: #0b0b0b;
 
-  /* Command-center theme tokens (light mode only) */
-  --ink-950: #0a0e14;
-  --ink-900: #10161f;
-  --ink-800: #1a2230;
-  --ink-border: #26303f;
+  /* Insightix-inspired light theme tokens */
+  --sidebar-bg: #ffffff;
+  --sidebar-border: #e9eaee;
+  --sidebar-active-bg: #eef4ff;
+  --sidebar-text: #6b7280;
+  --sidebar-text-active: #2a78d6;
 
-  --surface-0: #fcfcfb;
+  --surface-0: #f7f8fa;
   --surface-1: #ffffff;
 
   --accent-500: #2a78d6;
   --accent-600: #1c5cab;
+  --accent-100: #eef4ff;
 
-  --line-hairline: #e1e0d9;
-  --text-primary: #0b0b0b;
-  --text-secondary: #52514e;
-  --text-muted: #898781;
+  --line-hairline: #e9eaee;
+  --text-primary: #0f172a;
+  --text-secondary: #52545c;
+  --text-muted: #8a8d98;
+
+  --trend-up: #eb6834;
+  --trend-down: #1baf7a;
 }
 
 @theme inline {

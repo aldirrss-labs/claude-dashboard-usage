@@ -7,15 +7,15 @@ interface SyncButtonProps {
 }
 
 function formatRelativeTime(iso: string | null): string {
-  if (!iso) return "Belum pernah sync";
+  if (!iso) return "Never synced";
   const diffMs = Date.now() - new Date(iso + "Z").getTime();
   const diffSec = Math.round(diffMs / 1000);
-  if (diffSec < 5) return "Baru saja";
-  if (diffSec < 60) return `${diffSec} detik lalu`;
+  if (diffSec < 5) return "Just now";
+  if (diffSec < 60) return `${diffSec}s ago`;
   const diffMin = Math.round(diffSec / 60);
-  if (diffMin < 60) return `${diffMin} menit lalu`;
+  if (diffMin < 60) return `${diffMin}m ago`;
   const diffHour = Math.round(diffMin / 60);
-  return `${diffHour} jam lalu`;
+  return `${diffHour}h ago`;
 }
 
 export function SyncButton({ onSynced }: SyncButtonProps) {

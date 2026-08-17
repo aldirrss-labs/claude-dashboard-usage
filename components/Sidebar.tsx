@@ -38,7 +38,7 @@ export function Sidebar() {
       animate={{ width: collapsed ? 64 : 240 }}
       transition={{ type: "spring", stiffness: 380, damping: 32 }}
       className="relative flex h-screen flex-shrink-0 flex-col overflow-hidden"
-      style={{ background: "var(--ink-950)", borderRight: "1px solid var(--ink-border)" }}
+      style={{ background: "var(--sidebar-bg)", borderRight: "1px solid var(--sidebar-border)" }}
     >
       <div className="flex h-14 items-center gap-2.5 px-4">
         <div
@@ -54,7 +54,8 @@ export function Sidebar() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
-              className="whitespace-nowrap text-sm font-semibold text-white"
+              className="whitespace-nowrap text-sm font-semibold"
+              style={{ color: "var(--text-primary)" }}
             >
               Claude Usage
             </motion.span>
@@ -70,13 +71,13 @@ export function Sidebar() {
               key={item.href}
               href={item.href}
               className="relative flex items-center gap-3 rounded-md px-2.5 py-2 text-sm transition-colors"
-              style={{ color: active ? "#ffffff" : "#8992a3" }}
+              style={{ color: active ? "var(--sidebar-text-active)" : "var(--sidebar-text)" }}
             >
               {active && (
                 <motion.div
                   layoutId="sidebar-active-indicator"
                   className="absolute inset-0 rounded-md"
-                  style={{ background: "var(--ink-800)" }}
+                  style={{ background: "var(--sidebar-active-bg)" }}
                   transition={{ type: "spring", stiffness: 500, damping: 40 }}
                 />
               )}
@@ -96,7 +97,7 @@ export function Sidebar() {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.15 }}
-                    className="relative z-10 whitespace-nowrap"
+                    className="relative z-10 whitespace-nowrap font-medium"
                   >
                     {item.label}
                   </motion.span>
@@ -109,8 +110,8 @@ export function Sidebar() {
 
       <button
         onClick={toggleCollapsed}
-        className="flex items-center gap-3 px-4 py-3 text-xs transition-colors hover:text-white"
-        style={{ color: "#8992a3", borderTop: "1px solid var(--ink-border)" }}
+        className="flex items-center gap-3 px-4 py-3 text-xs transition-colors"
+        style={{ color: "var(--sidebar-text)", borderTop: "1px solid var(--sidebar-border)" }}
       >
         <ChevronIcon className={`h-3.5 w-3.5 flex-shrink-0 transition-transform ${collapsed ? "rotate-180" : ""}`} />
         <AnimatePresence>
@@ -162,9 +163,9 @@ function SlidersIcon({ className }: { className?: string }) {
         strokeWidth="1.8"
         strokeLinecap="round"
       />
-      <circle cx="15" cy="6" r="2" fill="var(--ink-950)" stroke="currentColor" strokeWidth="1.8" />
-      <circle cx="19" cy="12" r="2" fill="var(--ink-950)" stroke="currentColor" strokeWidth="1.8" />
-      <circle cx="11" cy="18" r="2" fill="var(--ink-950)" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="15" cy="6" r="2" fill="var(--sidebar-bg)" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="19" cy="12" r="2" fill="var(--sidebar-bg)" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="11" cy="18" r="2" fill="var(--sidebar-bg)" stroke="currentColor" strokeWidth="1.8" />
     </svg>
   );
 }

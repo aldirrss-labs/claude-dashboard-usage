@@ -73,7 +73,7 @@ export default function ProjectDetailPage() {
         className="inline-flex items-center text-sm hover:underline"
         style={{ color: "var(--accent-500)" }}
       >
-        ← Kembali ke Projects
+        ← Back to Projects
       </Link>
       <div>
         <h1 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
@@ -92,7 +92,7 @@ export default function ProjectDetailPage() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
-          className="rounded-lg p-4"
+          className="rounded-xl p-5"
           style={{ background: "var(--surface-1)", border: "1px solid var(--line-hairline)" }}
         >
           <div className="text-xs font-medium uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
@@ -108,7 +108,7 @@ export default function ProjectDetailPage() {
         <h2 className="mb-2 text-xs font-medium uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
           Sessions
         </h2>
-        <div className="mb-4 rounded-lg p-4" style={{ background: "var(--surface-1)", border: "1px solid var(--line-hairline)" }}>
+        <div className="mb-4 rounded-xl p-5" style={{ background: "var(--surface-1)", border: "1px solid var(--line-hairline)" }}>
           <SessionTokensChart sessions={project.sessions} />
         </div>
         <table className="w-full text-sm">

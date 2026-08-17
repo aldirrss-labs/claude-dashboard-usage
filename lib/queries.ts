@@ -52,6 +52,23 @@ export interface TopProjectRow {
 export interface BudgetLimit {
   limitUsd: number | null;
 }
+export interface EmailSettings {
+  smtpUser: string | null;
+  smtpAppPassword: string | null;
+  recipientEmail: string | null;
+  enabled: boolean;
+}
+export interface DailyReport {
+  date: string;
+  totalTokens: number;
+  totalCostUsd: number;
+  previousDayCostUsd: number;
+  costChangePct: number | null;
+  cacheEfficiencyPct: number;
+  cacheSavingsUsd: number;
+  byProject: Array<{ displayName: string; totalTokens: number; costUsd: number }>;
+  byModel: Array<{ model: string; totalTokens: number; costUsd: number }>;
+}
 
 interface PricingMap {
   [model: string]: { input_price: number; cache_write_price: number; cache_read_price: number; output_price: number };
@@ -424,4 +441,152 @@ export function setDailyBudgetLimit(limitUsd: number | null): void {
       `INSERT INTO budget_limits (scope, period, limit_usd, created_at) VALUES ('global', 'daily', ?, datetime('now'))`
     ).run(limitUsd);
   }
+}
+
+export function getEmailSettings(): EmailSettings {
+  const db = getDb();
+  const row = db.prepare(`SELECT * FROM email_settings WHERE id = 1`).get() as
+    | { smtp_user: string | null; smtp_app_password: string | null; recipient_email: string | null; enabled: number }
+    | undefined;
+  if (!row) return { smtpUser: null, smtpAppPassword: null, recipientEmail: null, enabled: false };
+  return {
+    smtpUser: row.smtp_user,
+    smtpAppPassword: row.smtp_app_password,
+    recipientEmail: row.recipient_email,
+    enabled: row.enabled === 1,
+  };
+}
+
+export function setEmailSettings(settings: {
+  smtpUser: string | null;
+  smtpAppPassword: string | null;
+  recipientEmail: string | null;
+  enabled: boolean;
+}): void {
+  const db = getDb();
+  db.prepare(
+    `INSERT INTO email_settings (id, smtp_user, smtp_app_password, recipient_email, enabled)
+     VALUES (1, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       smtp_user = excluded.smtp_user,
+       smtp_app_password = excluded.smtp_app_password,
+       recipient_email = excluded.recipient_email,
+       enabled = excluded.enabled`
+  ).run(settings.smtpUser, settings.smtpAppPassword, settings.recipientEmail, settings.enabled ? 1 : 0);
+}
+
+export function hasEmailLogEntry(dateISO: string): boolean {
+  const db = getDb();
+  const row = db.prepare(`SELECT 1 FROM email_log WHERE report_date = ?`).get(dateISO);
+  return row !== undefined;
+}
+
+export function recordEmailLog(dateISO: string, status: "sent" | "failed"): void {
+  const db = getDb();
+  db.prepare(
+    `INSERT INTO email_log (report_date, sent_at, status) VALUES (?, datetime('now'), ?)
+     ON CONFLICT(report_date) DO UPDATE SET sent_at = excluded.sent_at, status = excluded.status`
+  ).run(dateISO, status);
+}
+
+export function getDailyReport(dateISO: string): DailyReport {
+  const db = getDb();
+  const pricing = loadPricing();
+
+  function costAndTokensFor(dayStart: string, dayEnd: string) {
+    const rows = db
+      .prepare(
+        `SELECT model, input_tokens, cache_creation_input_tokens, cache_read_input_tokens, output_tokens
+         FROM usage_events WHERE timestamp >= ? AND timestamp < ?`
+      )
+      .all(dayStart, dayEnd) as Array<{
+      model: string;
+      input_tokens: number;
+      cache_creation_input_tokens: number;
+      cache_read_input_tokens: number;
+      output_tokens: number;
+    }>;
+    let totalTokens = 0;
+    let totalCostUsd = 0;
+    let totalInput = 0;
+    let totalCacheRead = 0;
+    let cacheSavingsUsd = 0;
+    for (const row of rows) {
+      totalTokens += row.input_tokens + row.cache_creation_input_tokens + row.cache_read_input_tokens + row.output_tokens;
+      totalCostUsd += costForRow(pricing, row.model, row);
+      totalInput += row.input_tokens;
+      totalCacheRead += row.cache_read_input_tokens;
+      const price = pricing[row.model] ??
+        pricing["unknown"] ?? { input_price: 0, cache_write_price: 0, cache_read_price: 0, output_price: 0 };
+      cacheSavingsUsd +=
+        (row.cache_read_input_tokens / 1_000_000) * price.input_price -
+        (row.cache_read_input_tokens / 1_000_000) * price.cache_read_price;
+    }
+    const cacheEfficiencyPct = totalInput + totalCacheRead > 0 ? (totalCacheRead / (totalInput + totalCacheRead)) * 100 : 0;
+    return { totalTokens, totalCostUsd, cacheEfficiencyPct, cacheSavingsUsd };
+  }
+
+  const dayStart = `${dateISO} 00:00:00`;
+  const dayEnd = `${dateISO} 23:59:59.999`;
+  const prevDate = new Date(`${dateISO}T00:00:00Z`);
+  prevDate.setUTCDate(prevDate.getUTCDate() - 1);
+  const prevDateISO = prevDate.toISOString().slice(0, 10);
+  const prevDayStart = `${prevDateISO} 00:00:00`;
+  const prevDayEnd = `${prevDateISO} 23:59:59.999`;
+
+  const today = costAndTokensFor(dayStart, dayEnd);
+  const previous = costAndTokensFor(prevDayStart, prevDayEnd);
+  const costChangePct = previous.totalCostUsd > 0 ? ((today.totalCostUsd - previous.totalCostUsd) / previous.totalCostUsd) * 100 : null;
+
+  const byProjectRows = db
+    .prepare(
+      `SELECT p.display_name as displayName, e.model, e.input_tokens, e.cache_creation_input_tokens,
+              e.cache_read_input_tokens, e.output_tokens
+       FROM usage_events e JOIN projects p ON p.id = e.project_id
+       WHERE e.timestamp >= ? AND e.timestamp < ?`
+    )
+    .all(dayStart, dayEnd) as Array<{
+    displayName: string;
+    model: string;
+    input_tokens: number;
+    cache_creation_input_tokens: number;
+    cache_read_input_tokens: number;
+    output_tokens: number;
+  }>;
+
+  const projectTotals = new Map<string, { totalTokens: number; costUsd: number }>();
+  const modelTotals = new Map<string, { totalTokens: number; costUsd: number }>();
+  for (const row of byProjectRows) {
+    const tokens = row.input_tokens + row.cache_creation_input_tokens + row.cache_read_input_tokens + row.output_tokens;
+    const cost = costForRow(pricing, row.model, row);
+
+    const p = projectTotals.get(row.displayName) ?? { totalTokens: 0, costUsd: 0 };
+    p.totalTokens += tokens;
+    p.costUsd += cost;
+    projectTotals.set(row.displayName, p);
+
+    const m = modelTotals.get(row.model) ?? { totalTokens: 0, costUsd: 0 };
+    m.totalTokens += tokens;
+    m.costUsd += cost;
+    modelTotals.set(row.model, m);
+  }
+
+  const byProject = [...projectTotals.entries()]
+    .map(([displayName, v]) => ({ displayName, ...v }))
+    .sort((a, b) => b.costUsd - a.costUsd);
+  const byModel = [...modelTotals.entries()]
+    .map(([model, v]) => ({ model, ...v }))
+    .sort((a, b) => b.costUsd - a.costUsd);
+
+  return {
+    date: dateISO,
+    totalTokens: today.totalTokens,
+    totalCostUsd: today.totalCostUsd,
+    previousDayCostUsd: previous.totalCostUsd,
+    costChangePct,
+    cacheEfficiencyPct: today.cacheEfficiencyPct,
+    cacheSavingsUsd: today.cacheSavingsUsd,
+    byProject,
+    byModel,
+  };
 }

@@ -87,7 +87,7 @@ export default function DashboardPage() {
           className="rounded-lg px-4 py-2 text-sm font-medium"
           style={{ background: "rgba(235, 104, 52, 0.12)", color: "#eb6834", border: "1px solid rgba(235, 104, 52, 0.3)" }}
         >
-          ⚠ Biaya hari ini (${data.summary.todayCostUsd.toFixed(2)}) melebihi budget harian (${data.budgetLimit.limitUsd.toFixed(2)})
+          ⚠ Today&apos;s cost (${data.summary.todayCostUsd.toFixed(2)}) exceeds your daily budget (${data.budgetLimit.limitUsd.toFixed(2)})
         </div>
       )}
 
@@ -97,14 +97,14 @@ export default function DashboardPage() {
           label="Estimated cost"
           value={data.summary.totalCostUsd}
           formatter={(n) => `$${n.toFixed(2)}`}
-          hint={`≈ $${data.summary.projectedMonthlyCostUsd.toFixed(2)}/bulan jika tren berlanjut`}
+          hint={`≈ $${data.summary.projectedMonthlyCostUsd.toFixed(2)}/mo if this trend continues`}
         />
         <SummaryCard label="Active projects" value={data.summary.activeProjectCount} />
         <SummaryCard
           label="Cache efficiency"
           value={data.summary.cacheEfficiencyPct}
           formatter={(n) => `${n.toFixed(1)}%`}
-          hint={`Hemat $${data.summary.cacheSavingsUsd.toFixed(2)} dari cache`}
+          hint={`Saved $${data.summary.cacheSavingsUsd.toFixed(2)} from caching`}
         />
       </div>
 
@@ -112,7 +112,7 @@ export default function DashboardPage() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3, delay: 0.1 }}
-        className="rounded-lg p-4"
+        className="rounded-xl p-5"
         style={{ background: "var(--surface-1)", border: "1px solid var(--line-hairline)" }}
       >
         <h2 className="mb-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
@@ -125,7 +125,7 @@ export default function DashboardPage() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3, delay: 0.15 }}
-        className="rounded-lg p-4"
+        className="rounded-xl p-5"
         style={{ background: "var(--surface-1)", border: "1px solid var(--line-hairline)" }}
       >
         <h2 className="mb-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
@@ -138,7 +138,7 @@ export default function DashboardPage() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3, delay: 0.2 }}
-        className="rounded-lg p-4"
+        className="rounded-xl p-5"
         style={{ background: "var(--surface-1)", border: "1px solid var(--line-hairline)" }}
       >
         <h2 className="mb-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>

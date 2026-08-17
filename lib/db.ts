@@ -63,6 +63,20 @@ CREATE TABLE IF NOT EXISTS budget_limits (
   limit_usd REAL,
   created_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS email_settings (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  smtp_user TEXT,
+  smtp_app_password TEXT,
+  recipient_email TEXT,
+  enabled INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS email_log (
+  report_date TEXT PRIMARY KEY,
+  sent_at TEXT NOT NULL,
+  status TEXT NOT NULL
+);
 `;
 
 function migrateProjectsTable(db: Database.Database): void {

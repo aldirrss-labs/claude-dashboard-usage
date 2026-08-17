@@ -9,9 +9,11 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@tremor/react": "^4.0.0-beta-tremor-v4.4",
     "better-sqlite3": "^13.0.3",
     "framer-motion": "^13.1.0",
     "next": "16.3.0",
+    "nodemailer": "^9.0.5",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "recharts": "^3.10.1"
@@ -20,6 +22,7 @@
     "@tailwindcss/postcss": "^4",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^20",
+    "@types/nodemailer": "^8.0.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

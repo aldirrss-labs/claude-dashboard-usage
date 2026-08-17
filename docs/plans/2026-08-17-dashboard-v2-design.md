@@ -213,3 +213,17 @@ Ganti `UsageTimeSeriesChart`, `ModelBreakdownChart`, `TopProjectsTable` (sparkli
 dengan referensi Insightix (gradient halus, animasi transisi, tooltip lebih polished). Tremor
 sendiri dibangun di atas Recharts, jadi migrasi ini adalah penggantian lapisan styling/API, bukan
 penulisan ulang total dari nol.
+
+**Catatan kompatibilitas (ditemukan saat implementasi):**
+
+- `@tremor/react` versi stabil (3.18.x) hanya mendukung React ^18, sedangkan project ini React
+  19.2.8. Dipakai versi pra-rilis `4.0.0-beta-tremor-v4.4`, satu-satunya versi published yang
+  declare peer dep `react: ^19.0.0`. Risiko: API bisa berubah saat rilis stabil resmi nanti.
+- Tremor generate class warna chart (`fill-blue-500`, dst) secara dinamis di runtime, bukan
+  literal string — jadi Tailwind v4's static content scanner tidak pernah menemukannya, chart
+  render tanpa warna (hitam/abu-abu semua). Dokumentasi resmi Tremor untuk Tailwind v3 mengatasi
+  ini lewat `content` + `safelist` di `tailwind.config.ts`, tapi project ini pakai Tailwind v4
+  (tanpa config file, CSS-first). Diperbaiki dengan `@source inline("...")` di `app/globals.css`
+  yang secara eksplisit men-source semua kombinasi warna/shade yang dipakai (`blue`, `orange`,
+  `emerald`, `amber`, `gray` × beberapa shade). Perlu ditambah manual jika warna baru dipakai
+  Tremor di masa depan.

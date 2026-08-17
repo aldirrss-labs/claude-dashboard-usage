@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LineChart, Line, ResponsiveContainer } from "recharts";
+import { SparkAreaChart } from "@tremor/react";
 
 interface TopProjectRow {
   slug: string;
@@ -11,21 +11,13 @@ interface TopProjectRow {
   sparkline: number[];
 }
 
-const COLOR_ACCENT = "#2a78d6";
-
 function Sparkline({ values }: { values: number[] }) {
   if (values.length < 2) {
     return <div className="h-8 w-24 text-xs" style={{ color: "var(--text-muted)" }}>—</div>;
   }
-  const data = values.map((v, i) => ({ i, v }));
+  const data = values.map((v, i) => ({ day: i, tokens: v }));
   return (
-    <div className="h-8 w-24">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data}>
-          <Line type="monotone" dataKey="v" stroke={COLOR_ACCENT} strokeWidth={1.5} dot={false} />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
+    <SparkAreaChart data={data} index="day" categories={["tokens"]} colors={["blue"]} className="h-8 w-24" />
   );
 }
 
@@ -33,7 +25,7 @@ export function TopProjectsTable({ projects }: { projects: TopProjectRow[] }) {
   if (projects.length === 0) {
     return (
       <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-        Belum ada data penggunaan pada rentang ini.
+        No usage data in this range yet.
       </p>
     );
   }
@@ -43,7 +35,7 @@ export function TopProjectsTable({ projects }: { projects: TopProjectRow[] }) {
       <thead>
         <tr style={{ borderBottom: "1px solid var(--line-hairline)", color: "var(--text-muted)" }}>
           <th className="py-2 pr-4 text-left text-xs font-medium uppercase tracking-wide">Project</th>
-          <th className="py-2 pr-4 text-left text-xs font-medium uppercase tracking-wide whitespace-nowrap">Tokens/hari</th>
+          <th className="py-2 pr-4 text-left text-xs font-medium uppercase tracking-wide whitespace-nowrap">Trend</th>
           <th className="py-2 pr-4 text-left text-xs font-medium uppercase tracking-wide whitespace-nowrap">Tokens</th>
           <th className="py-2 text-left text-xs font-medium uppercase tracking-wide whitespace-nowrap">Cost</th>
         </tr>
