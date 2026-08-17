@@ -12,6 +12,21 @@ interface ProjectListRow {
   costUsd: number;
   lastActiveAt: string | null;
   sessionCount: number;
+  weekOverWeekPct: number | null;
+}
+
+function WeekOverWeekBadge({ pct }: { pct: number | null }) {
+  if (pct === null) return <span style={{ color: "var(--text-muted)" }}>—</span>;
+  const rounded = Math.round(pct);
+  const isUp = rounded > 0;
+  const isFlat = rounded === 0;
+  const color = isFlat ? "var(--text-muted)" : isUp ? "#eb6834" : "#1baf7a";
+  const arrow = isFlat ? "" : isUp ? "↑" : "↓";
+  return (
+    <span style={{ color }}>
+      {arrow} {Math.abs(rounded)}%
+    </span>
+  );
 }
 
 type SortKey = "totalTokens" | "costUsd" | "lastActiveAt" | "displayName" | "sessionCount";
@@ -97,6 +112,7 @@ export function ProjectTable({ projects }: { projects: ProjectListRow[] }) {
             <th className="py-2 pr-4 whitespace-nowrap text-xs font-medium uppercase tracking-wide">Tokens</th>
             <th className="py-2 pr-4 whitespace-nowrap text-xs font-medium uppercase tracking-wide">Cost</th>
             <th className="py-2 pr-4 whitespace-nowrap text-xs font-medium uppercase tracking-wide">Sessions</th>
+            <th className="py-2 pr-4 whitespace-nowrap text-xs font-medium uppercase tracking-wide">WoW</th>
             <th className="py-2 whitespace-nowrap text-xs font-medium uppercase tracking-wide">Last active</th>
           </tr>
         </thead>
@@ -129,6 +145,9 @@ export function ProjectTable({ projects }: { projects: ProjectListRow[] }) {
               </td>
               <td className="font-data py-2 pr-4 whitespace-nowrap" style={{ color: "var(--text-primary)" }}>
                 {p.sessionCount}
+              </td>
+              <td className="font-data py-2 pr-4 whitespace-nowrap text-xs">
+                <WeekOverWeekBadge pct={p.weekOverWeekPct} />
               </td>
               <td className="font-data py-2 whitespace-nowrap text-xs" style={{ color: "var(--text-muted)" }}>
                 {formatDate(p.lastActiveAt)}

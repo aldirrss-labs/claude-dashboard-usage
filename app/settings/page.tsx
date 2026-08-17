@@ -17,6 +17,8 @@ export default function SettingsPage() {
   const [pricing, setPricing] = useState<PricingRow[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [budgetInput, setBudgetInput] = useState("");
+  const [budgetSaved, setBudgetSaved] = useState<number | null>(null);
 
   function loadPricing() {
     fetch("/api/pricing")
@@ -24,7 +26,27 @@ export default function SettingsPage() {
       .then((json) => setPricing(json.pricing));
   }
 
+  function loadBudget() {
+    fetch("/api/budget")
+      .then((res) => res.json())
+      .then((json) => {
+        setBudgetSaved(json.limitUsd);
+        setBudgetInput(json.limitUsd !== null ? String(json.limitUsd) : "");
+      });
+  }
+
   useEffect(loadPricing, []);
+  useEffect(loadBudget, []);
+
+  async function handleSaveBudget() {
+    const parsed = budgetInput.trim() === "" ? null : Number(budgetInput);
+    await fetch("/api/budget", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ limitUsd: parsed }),
+    });
+    loadBudget();
+  }
 
   async function handleSync() {
     setSyncing(true);
@@ -129,6 +151,33 @@ export default function SettingsPage() {
           ))}
         </tbody>
       </table>
+
+      <div className="rounded-lg p-4" style={{ background: "var(--surface-1)", border: "1px solid var(--line-hairline)" }}>
+        <h2 className="mb-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+          Budget harian
+        </h2>
+        <div className="flex items-center gap-3">
+          <input
+            type="number"
+            step="0.01"
+            placeholder="Tanpa batas"
+            className="font-data w-32 rounded border px-2 py-1.5 text-sm outline-none"
+            style={{ borderColor: "var(--line-hairline)", background: "var(--surface-0)", color: "var(--text-primary)" }}
+            value={budgetInput}
+            onChange={(e) => setBudgetInput(e.target.value)}
+          />
+          <button
+            onClick={handleSaveBudget}
+            className="rounded border px-3 py-1.5 text-sm font-medium"
+            style={{ borderColor: "var(--line-hairline)", background: "var(--surface-0)", color: "var(--text-primary)" }}
+          >
+            Save
+          </button>
+          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+            {budgetSaved !== null ? `Aktif: $${budgetSaved.toFixed(2)}/hari` : "Belum diatur"}
+          </span>
+        </div>
+      </div>
     </main>
   );
 }

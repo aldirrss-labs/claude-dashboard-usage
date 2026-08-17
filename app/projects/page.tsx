@@ -12,6 +12,7 @@ interface ProjectListRow {
   costUsd: number;
   lastActiveAt: string | null;
   sessionCount: number;
+  weekOverWeekPct: number | null;
 }
 
 export default function ProjectsPage() {

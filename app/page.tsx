@@ -6,9 +6,18 @@ import { SummaryCard } from "@/components/SummaryCard";
 import { UsageTimeSeriesChart } from "@/components/UsageTimeSeriesChart";
 import { ModelBreakdownChart } from "@/components/ModelBreakdownChart";
 import { SyncButton } from "@/components/SyncButton";
+import { TopProjectsTable } from "@/components/TopProjectsTable";
 
 interface SummaryResponse {
-  summary: { totalTokens: number; totalCostUsd: number; activeProjectCount: number; cacheEfficiencyPct: number };
+  summary: {
+    totalTokens: number;
+    totalCostUsd: number;
+    activeProjectCount: number;
+    cacheEfficiencyPct: number;
+    cacheSavingsUsd: number;
+    projectedMonthlyCostUsd: number;
+    todayCostUsd: number;
+  };
   timeSeries: Array<{
     bucketStart: string;
     input_tokens: number;
@@ -17,6 +26,8 @@ interface SummaryResponse {
     cache_read_input_tokens: number;
   }>;
   modelBreakdown: Array<{ model: string; totalTokens: number; costUsd: number }>;
+  topProjects: Array<{ slug: string; displayName: string; costUsd: number; totalTokens: number; sparkline: number[] }>;
+  budgetLimit: { limitUsd: number | null };
 }
 
 const POLL_INTERVAL_MS = 20_000;
@@ -71,18 +82,29 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {data.budgetLimit.limitUsd !== null && data.summary.todayCostUsd > data.budgetLimit.limitUsd && (
+        <div
+          className="rounded-lg px-4 py-2 text-sm font-medium"
+          style={{ background: "rgba(235, 104, 52, 0.12)", color: "#eb6834", border: "1px solid rgba(235, 104, 52, 0.3)" }}
+        >
+          ⚠ Biaya hari ini (${data.summary.todayCostUsd.toFixed(2)}) melebihi budget harian (${data.budgetLimit.limitUsd.toFixed(2)})
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <SummaryCard label="Total tokens" value={data.summary.totalTokens} />
         <SummaryCard
           label="Estimated cost"
           value={data.summary.totalCostUsd}
           formatter={(n) => `$${n.toFixed(2)}`}
+          hint={`≈ $${data.summary.projectedMonthlyCostUsd.toFixed(2)}/bulan jika tren berlanjut`}
         />
         <SummaryCard label="Active projects" value={data.summary.activeProjectCount} />
         <SummaryCard
           label="Cache efficiency"
           value={data.summary.cacheEfficiencyPct}
           formatter={(n) => `${n.toFixed(1)}%`}
+          hint={`Hemat $${data.summary.cacheSavingsUsd.toFixed(2)} dari cache`}
         />
       </div>
 
@@ -110,6 +132,19 @@ export default function DashboardPage() {
           Usage by model
         </h2>
         <ModelBreakdownChart data={data.modelBreakdown} />
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3, delay: 0.2 }}
+        className="rounded-lg p-4"
+        style={{ background: "var(--surface-1)", border: "1px solid var(--line-hairline)" }}
+      >
+        <h2 className="mb-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+          Top projects
+        </h2>
+        <TopProjectsTable projects={data.topProjects} />
       </motion.div>
     </main>
   );

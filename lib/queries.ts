@@ -5,6 +5,9 @@ export interface DashboardSummary {
   totalCostUsd: number;
   activeProjectCount: number;
   cacheEfficiencyPct: number;
+  cacheSavingsUsd: number;
+  projectedMonthlyCostUsd: number;
+  todayCostUsd: number;
 }
 export interface TimeSeriesPoint {
   bucketStart: string;
@@ -26,6 +29,7 @@ export interface ProjectListRow {
   costUsd: number;
   lastActiveAt: string | null;
   sessionCount: number;
+  weekOverWeekPct: number | null;
 }
 export interface ProjectDetail extends ProjectListRow {
   sessions: Array<{
@@ -35,7 +39,18 @@ export interface ProjectDetail extends ProjectListRow {
     messageCount: number;
     totalTokens: number;
     costUsd: number;
+    dominantModel: string | null;
   }>;
+}
+export interface TopProjectRow {
+  slug: string;
+  displayName: string;
+  costUsd: number;
+  totalTokens: number;
+  sparkline: number[];
+}
+export interface BudgetLimit {
+  limitUsd: number | null;
 }
 
 interface PricingMap {
@@ -104,13 +119,32 @@ export function getDashboardSummary(rangeDays: number): DashboardSummary {
   let totalCostUsd = 0;
   let totalInput = 0;
   let totalCacheRead = 0;
+  let cacheSavingsUsd = 0;
 
   for (const row of rows) {
     totalTokens += row.input_tokens + row.cache_creation_input_tokens + row.cache_read_input_tokens + row.output_tokens;
     totalCostUsd += costForRow(pricing, row.model, row);
     totalInput += row.input_tokens;
     totalCacheRead += row.cache_read_input_tokens;
+
+    const price = pricing[row.model] ??
+      pricing["unknown"] ?? { input_price: 0, cache_write_price: 0, cache_read_price: 0, output_price: 0 };
+    const cacheReadCost = (row.cache_read_input_tokens / 1_000_000) * price.cache_read_price;
+    const hadItBeenInputCost = (row.cache_read_input_tokens / 1_000_000) * price.input_price;
+    cacheSavingsUsd += hadItBeenInputCost - cacheReadCost;
   }
+
+  const todayCostUsd = (() => {
+    const todayRows = db
+      .prepare(
+        `SELECT model, input_tokens, cache_creation_input_tokens, cache_read_input_tokens, output_tokens
+         FROM usage_events WHERE timestamp >= datetime('now', 'start of day')`
+      )
+      .all() as typeof rows;
+    return todayRows.reduce((sum, row) => sum + costForRow(pricing, row.model, row), 0);
+  })();
+
+  const projectedMonthlyCostUsd = rangeDays > 0 ? (totalCostUsd / rangeDays) * 30 : 0;
 
   const activeProjectCount = (
     db
@@ -120,7 +154,15 @@ export function getDashboardSummary(rangeDays: number): DashboardSummary {
 
   const cacheEfficiencyPct = totalInput + totalCacheRead > 0 ? (totalCacheRead / (totalInput + totalCacheRead)) * 100 : 0;
 
-  return { totalTokens, totalCostUsd, activeProjectCount, cacheEfficiencyPct };
+  return {
+    totalTokens,
+    totalCostUsd,
+    activeProjectCount,
+    cacheEfficiencyPct,
+    cacheSavingsUsd,
+    projectedMonthlyCostUsd,
+    todayCostUsd,
+  };
 }
 
 export function getUsageTimeSeries(rangeDays: number, bucket: "day" | "week" | "month"): TimeSeriesPoint[] {
@@ -208,6 +250,29 @@ export function listProjects(): ProjectListRow[] {
       c: number;
     }).c;
 
+    const thisWeekRows = db
+      .prepare(
+        `SELECT model, input_tokens, cache_creation_input_tokens, cache_read_input_tokens, output_tokens
+         FROM usage_events WHERE project_id = ? AND timestamp >= datetime('now', '-7 days')`
+      )
+      .all(project.id) as Array<{
+      model: string;
+      input_tokens: number;
+      cache_creation_input_tokens: number;
+      cache_read_input_tokens: number;
+      output_tokens: number;
+    }>;
+    const lastWeekRows = db
+      .prepare(
+        `SELECT model, input_tokens, cache_creation_input_tokens, cache_read_input_tokens, output_tokens
+         FROM usage_events WHERE project_id = ? AND timestamp >= datetime('now', '-14 days') AND timestamp < datetime('now', '-7 days')`
+      )
+      .all(project.id) as typeof thisWeekRows;
+
+    const thisWeekCost = thisWeekRows.reduce((sum, row) => sum + costForRow(pricing, row.model, row), 0);
+    const lastWeekCost = lastWeekRows.reduce((sum, row) => sum + costForRow(pricing, row.model, row), 0);
+    const weekOverWeekPct = lastWeekCost > 0 ? ((thisWeekCost - lastWeekCost) / lastWeekCost) * 100 : null;
+
     return {
       slug: project.slug,
       displayName: project.display_name,
@@ -216,6 +281,65 @@ export function listProjects(): ProjectListRow[] {
       costUsd,
       lastActiveAt: project.last_active_at,
       sessionCount,
+      weekOverWeekPct,
+    };
+  });
+}
+
+export function getTopProjects(rangeDays: number, limit: number = 5): TopProjectRow[] {
+  const db = getDb();
+  const pricing = loadPricing();
+  const projects = db.prepare(`SELECT id, slug, display_name FROM projects`).all() as Array<{
+    id: number;
+    slug: string;
+    display_name: string;
+  }>;
+
+  const ranked = projects.map((project) => {
+    const rows = db
+      .prepare(
+        `SELECT model, input_tokens, cache_creation_input_tokens, cache_read_input_tokens, output_tokens
+         FROM usage_events WHERE project_id = ? AND timestamp >= datetime('now', ?)`
+      )
+      .all(project.id, `-${rangeDays} days`) as Array<{
+      model: string;
+      input_tokens: number;
+      cache_creation_input_tokens: number;
+      cache_read_input_tokens: number;
+      output_tokens: number;
+    }>;
+
+    let totalTokens = 0;
+    let costUsd = 0;
+    for (const row of rows) {
+      totalTokens += row.input_tokens + row.cache_creation_input_tokens + row.cache_read_input_tokens + row.output_tokens;
+      costUsd += costForRow(pricing, row.model, row);
+    }
+    return { project, totalTokens, costUsd };
+  });
+
+  const top = ranked
+    .filter((r) => r.costUsd > 0)
+    .sort((a, b) => b.costUsd - a.costUsd)
+    .slice(0, limit);
+
+  return top.map(({ project, totalTokens, costUsd }) => {
+    const dailyRows = db
+      .prepare(
+        `SELECT strftime('%Y-%m-%d', timestamp) as day,
+                SUM(input_tokens + cache_creation_input_tokens + cache_read_input_tokens + output_tokens) as tokens
+         FROM usage_events
+         WHERE project_id = ? AND timestamp >= datetime('now', ?)
+         GROUP BY day ORDER BY day ASC`
+      )
+      .all(project.id, `-${rangeDays} days`) as Array<{ day: string; tokens: number }>;
+
+    return {
+      slug: project.slug,
+      displayName: project.display_name,
+      costUsd,
+      totalTokens,
+      sparkline: dailyRows.map((r) => r.tokens),
     };
   });
 }
@@ -256,9 +380,16 @@ export function getProjectDetail(slug: string): ProjectDetail | null {
 
     let totalTokens = 0;
     let costUsd = 0;
+    let dominantModel: string | null = null;
+    let dominantModelTokens = -1;
     for (const row of usageRows) {
-      totalTokens += row.input_tokens + row.cache_creation_input_tokens + row.cache_read_input_tokens + row.output_tokens;
+      const rowTokens = row.input_tokens + row.cache_creation_input_tokens + row.cache_read_input_tokens + row.output_tokens;
+      totalTokens += rowTokens;
       costUsd += costForRow(pricing, row.model, row);
+      if (rowTokens > dominantModelTokens) {
+        dominantModelTokens = rowTokens;
+        dominantModel = row.model;
+      }
     }
 
     return {
@@ -268,8 +399,29 @@ export function getProjectDetail(slug: string): ProjectDetail | null {
       messageCount: session.message_count,
       totalTokens,
       costUsd,
+      dominantModel,
     };
   });
 
   return { ...listRow, sessions };
+}
+
+export function getDailyBudgetLimit(): BudgetLimit {
+  const db = getDb();
+  const row = db
+    .prepare(
+      `SELECT limit_usd FROM budget_limits WHERE scope = 'global' AND period = 'daily' ORDER BY created_at DESC LIMIT 1`
+    )
+    .get() as { limit_usd: number } | undefined;
+  return { limitUsd: row?.limit_usd ?? null };
+}
+
+export function setDailyBudgetLimit(limitUsd: number | null): void {
+  const db = getDb();
+  db.prepare(`DELETE FROM budget_limits WHERE scope = 'global' AND period = 'daily'`).run();
+  if (limitUsd !== null) {
+    db.prepare(
+      `INSERT INTO budget_limits (scope, period, limit_usd, created_at) VALUES ('global', 'daily', ?, datetime('now'))`
+    ).run(limitUsd);
+  }
 }

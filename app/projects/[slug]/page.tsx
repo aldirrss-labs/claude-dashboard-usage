@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { SummaryCard } from "@/components/SummaryCard";
+import { SessionTokensChart } from "@/components/SessionTokensChart";
 
 interface ProjectDetail {
   slug: string;
@@ -21,6 +22,7 @@ interface ProjectDetail {
     messageCount: number;
     totalTokens: number;
     costUsd: number;
+    dominantModel: string | null;
   }>;
 }
 
@@ -106,12 +108,16 @@ export default function ProjectDetailPage() {
         <h2 className="mb-2 text-xs font-medium uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
           Sessions
         </h2>
+        <div className="mb-4 rounded-lg p-4" style={{ background: "var(--surface-1)", border: "1px solid var(--line-hairline)" }}>
+          <SessionTokensChart sessions={project.sessions} />
+        </div>
         <table className="w-full text-sm">
           <thead>
             <tr style={{ borderBottom: "1px solid var(--line-hairline)", color: "var(--text-muted)" }}>
               <th className="py-2 pr-4 text-left text-xs font-medium uppercase tracking-wide">Session</th>
               <th className="py-2 pr-4 text-left text-xs font-medium uppercase tracking-wide whitespace-nowrap">Started</th>
               <th className="py-2 pr-4 text-left text-xs font-medium uppercase tracking-wide whitespace-nowrap">Ended</th>
+              <th className="py-2 pr-4 text-left text-xs font-medium uppercase tracking-wide whitespace-nowrap">Model</th>
               <th className="py-2 pr-4 text-left text-xs font-medium uppercase tracking-wide whitespace-nowrap">Messages</th>
               <th className="py-2 pr-4 text-left text-xs font-medium uppercase tracking-wide whitespace-nowrap">Tokens</th>
               <th className="py-2 text-left text-xs font-medium uppercase tracking-wide whitespace-nowrap">Cost</th>
@@ -134,6 +140,9 @@ export default function ProjectDetailPage() {
                 </td>
                 <td className="font-data py-2 pr-4 whitespace-nowrap text-xs" style={{ color: "var(--text-muted)" }}>
                   {formatDate(s.endedAt)}
+                </td>
+                <td className="font-data py-2 pr-4 whitespace-nowrap text-xs" style={{ color: "var(--text-secondary)" }}>
+                  {s.dominantModel ?? "—"}
                 </td>
                 <td className="font-data py-2 pr-4 whitespace-nowrap" style={{ color: "var(--text-primary)" }}>
                   {s.messageCount}

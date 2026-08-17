@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDashboardSummary, getUsageTimeSeries, getModelBreakdown } from "@/lib/queries";
+import {
+  getDashboardSummary,
+  getUsageTimeSeries,
+  getModelBreakdown,
+  getTopProjects,
+  getDailyBudgetLimit,
+} from "@/lib/queries";
 
 export async function GET(request: NextRequest) {
   const rangeDays = Number(request.nextUrl.searchParams.get("rangeDays") ?? "30");
@@ -9,5 +15,7 @@ export async function GET(request: NextRequest) {
     summary: getDashboardSummary(rangeDays),
     timeSeries: getUsageTimeSeries(rangeDays, bucket),
     modelBreakdown: getModelBreakdown(rangeDays),
+    topProjects: getTopProjects(rangeDays),
+    budgetLimit: getDailyBudgetLimit(),
   });
 }
