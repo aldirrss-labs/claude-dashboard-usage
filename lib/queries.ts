@@ -526,13 +526,17 @@ export function getDailyReport(dateISO: string): DailyReport {
     return { totalTokens, totalCostUsd, cacheEfficiencyPct, cacheSavingsUsd };
   }
 
-  const dayStart = `${dateISO} 00:00:00`;
-  const dayEnd = `${dateISO} 23:59:59.999`;
+  // usage_events.timestamp is stored as ISO 8601 with a literal "T"/"Z"
+  // (e.g. "2026-08-17T10:00:00.000Z"), so range bounds must match that
+  // exact format — a "YYYY-MM-DD HH:MM:SS" (space-separated) bound never
+  // matches anything since SQLite compares timestamps as plain strings.
+  const dayStart = `${dateISO}T00:00:00.000Z`;
+  const dayEnd = `${dateISO}T23:59:59.999Z`;
   const prevDate = new Date(`${dateISO}T00:00:00Z`);
   prevDate.setUTCDate(prevDate.getUTCDate() - 1);
   const prevDateISO = prevDate.toISOString().slice(0, 10);
-  const prevDayStart = `${prevDateISO} 00:00:00`;
-  const prevDayEnd = `${prevDateISO} 23:59:59.999`;
+  const prevDayStart = `${prevDateISO}T00:00:00.000Z`;
+  const prevDayEnd = `${prevDateISO}T23:59:59.999Z`;
 
   const today = costAndTokensFor(dayStart, dayEnd);
   const previous = costAndTokensFor(prevDayStart, prevDayEnd);
