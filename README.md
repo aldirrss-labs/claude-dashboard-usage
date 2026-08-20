@@ -1,36 +1,78 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Claude Usage Dashboard
 
-## Getting Started
+A local web dashboard that tracks Claude Code token usage and cost across every project on this
+machine. It reads directly from `~/.claude/projects/*/*.jsonl` — the session logs Claude Code
+already writes — so there's nothing to configure on the Claude Code side.
 
-First, run the development server:
+## Features
+
+- **Dashboard** — total tokens, estimated cost, active projects, cache efficiency, cache savings,
+  a projected monthly cost, a stacked usage-over-time chart, a model breakdown chart, and a
+  top-projects table with per-day sparklines.
+- **Projects** — every project detected on this machine, sortable by last active, tokens, cost,
+  session count, or name, with a week-over-week cost trend per project.
+- **Project detail** — per-session token history and a full session table, including which model
+  dominated each session.
+- **Settings** — editable per-model pricing (with a one-click sync from Anthropic's public pricing
+  page), a daily cost budget with an on-dashboard warning badge, and a daily email usage report.
+- **Manual sync** — a "Sync Now" button on the Dashboard and Projects pages triggers an immediate
+  re-scan on top of the automatic 5-minute background sync.
+
+## Getting started
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000). The app starts ingesting usage data
+immediately — no setup step required — by scanning `~/.claude/projects/`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+For running this as an always-on background service (systemd), see [`deploy/README.md`](deploy/README.md).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## How it works
 
-## Learn More
+- **Storage**: SQLite at `~/.claude-dashboard/usage.db`, created automatically on first run and
+  untouched by app rebuilds or redeploys.
+- **Ingestion**: an in-process scheduler (`lib/ingest-scheduler.ts`) re-scans `~/.claude/projects/`
+  every 5 minutes, tailing each `.jsonl` file from its last read byte offset so multi-MB logs
+  aren't reparsed on every cycle. The same cycle also checks whether a daily email report is due.
+- **Project identity**: projects are deduplicated by a normalized "canonical path" derived from
+  each session's real working directory, not the raw folder name Claude Code assigns — this keeps
+  git worktrees and other path variants of the same project from showing up as separate rows. See
+  `lib/paths.ts` (`normalizeCanonicalPath`) and `scripts/merge-duplicate-projects.ts` for the
+  one-time migration that merges any duplicates already in the database.
+- **Pricing**: model prices are stored in SQLite and used to compute cost for every view. They can
+  be edited manually in Settings or synced from `https://www.anthropic.com/pricing`.
 
-To learn more about Next.js, take a look at the following resources:
+## Daily email report
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Settings → Daily email report lets you send a full usage summary (cost, tokens, per-project and
+per-model breakdown, cache efficiency, day-over-day change) to an email address via Gmail SMTP,
+sent automatically once the previous day ends. It checks on every 5-minute ingest cycle — not just
+around midnight — and catches up on the last 3 days if the app wasn't running when a day rolled
+over, so a report is never silently lost.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+You'll need a [Gmail App Password](https://myaccount.google.com/apppasswords) (not your regular
+Gmail password) for the sender account. Use the "Send Test Email" button in Settings to verify the
+configuration before relying on it.
 
-## Deploy on Vercel
+## Tech stack
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- [Next.js](https://nextjs.org) (App Router) + React 19
+- [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) for storage
+- [Tremor](https://tremor.so) for charts, [Tailwind CSS v4](https://tailwindcss.com) for styling
+- [Framer Motion](https://www.framer.com/motion/) for animation
+- [Nodemailer](https://nodemailer.com) for the daily email report
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Project structure
+
+```
+app/                  Routes: Dashboard (/), Projects (/projects), Project detail
+                       (/projects/[slug]), Settings (/settings), and API routes under app/api/
+components/           UI components (charts, tables, cards, sidebar)
+lib/                  Ingestion, scheduling, SQLite schema/queries, pricing, mailer
+scripts/              One-off maintenance scripts (duplicate-project migration)
+deploy/               systemd unit + deployment instructions
+docs/plans/           Design docs written while building this app
+```
