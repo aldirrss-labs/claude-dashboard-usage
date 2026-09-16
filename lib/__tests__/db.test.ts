@@ -48,6 +48,6 @@ describe("getDb", () => {
       | { input_price: number }
       | undefined;
     assert.ok(row);
-    assert.strictEqual(row!.input_price, 3);
+    assert.strictEqual(row!.input_price, 2);
   });
 });

@@ -1,46 +1,13 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-
-interface ScrapedPrice {
-  model: string;
-  input_price: number;
-  cache_write_price: number;
-  cache_read_price: number;
-  output_price: number;
-}
-
-const MODEL_NAME_MAP: Record<string, string> = {
-  "Claude Opus 5": "claude-opus-5",
-  "Claude Sonnet 5": "claude-sonnet-5",
-  "Claude Haiku 4.5": "claude-haiku-4-5-20251001",
-};
-
-function parsePricingHtml(html: string): ScrapedPrice[] {
-  const results: ScrapedPrice[] = [];
-  for (const [label, modelId] of Object.entries(MODEL_NAME_MAP)) {
-    const labelIndex = html.indexOf(label);
-    if (labelIndex === -1) continue;
-    const window = html.slice(labelIndex, labelIndex + 2000);
-    const prices = [...window.matchAll(/\$([0-9]+(?:\.[0-9]+)?)/g)].map((m) => Number(m[1]));
-    if (prices.length < 2) continue;
-    const [input, output] = prices;
-    results.push({
-      model: modelId,
-      input_price: input,
-      output_price: output,
-      cache_write_price: Number((input * 1.25).toFixed(3)),
-      cache_read_price: Number((input * 0.1).toFixed(3)),
-    });
-  }
-  return results;
-}
+import { PRICING_URL, parsePricingMarkdown, type ScrapedPrice } from "@/lib/pricing-sync";
 
 export async function POST() {
   try {
-    const res = await fetch("https://www.anthropic.com/pricing", { signal: AbortSignal.timeout(10_000) });
+    const res = await fetch(PRICING_URL, { signal: AbortSignal.timeout(10_000) });
     if (!res.ok) throw new Error(`Fetch failed with status ${res.status}`);
-    const html = await res.text();
-    const scraped = parsePricingHtml(html);
+    const markdown = await res.text();
+    const scraped = parsePricingMarkdown(markdown);
 
     if (scraped.length === 0) {
       return NextResponse.json(

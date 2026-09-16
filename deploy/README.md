@@ -1,11 +1,17 @@
 # Deploying as a systemd user service
 
-1. Build the app:
+1. Install dependencies and build the app:
 
    ```bash
-   cd /mnt/data/Project/WEB/claude-dashboard-usage
+   cd ~/Project/PRIBADI/web/claude-dashboard-usage
+   npm install
    npm run build
    ```
+
+   On npm 11+, `npm install` defers package install scripts. `better-sqlite3`
+   ships prebuilt binaries for common platforms, so it normally works as-is; if
+   the service later fails to load the native module, approve its build script
+   with `npm install-scripts approve better-sqlite3`.
 
    This produces `.next/standalone/server.js`. Static assets and public files need to
    be copied manually since standalone mode doesn't include them by default:
@@ -20,7 +26,9 @@
    source your shell profile, so `ExecStart` needs an absolute path to the node
    binary rather than relying on `PATH`. Check yours with `which node` and update
    `ExecStart` in `deploy/claude-dashboard.service` if it differs from the
-   `%h/.nvm/versions/node/v24.15.0/bin/node` default:
+   `%h/.nvm/versions/node/v24.20.0/bin/node` default. `WorkingDirectory` uses
+   `%h` (your home directory) and assumes the repo lives at
+   `~/Project/PRIBADI/web/claude-dashboard-usage` — adjust it if yours differs:
 
    ```bash
    mkdir -p ~/.config/systemd/user
@@ -43,7 +51,9 @@
    ```
 
 5. The dashboard is now reachable at `http://localhost:4317` at all times, independent
-   of any terminal session.
+   of any terminal session. The unit sets `HOSTNAME=127.0.0.1` so it listens on
+   loopback only — remove that line if you want it reachable from other machines
+   on your network.
 
 6. To redeploy after code changes: repeat step 1, then:
 

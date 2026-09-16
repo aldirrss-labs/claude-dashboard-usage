@@ -1,4 +1,5 @@
 import { getDb } from "./db";
+import { normalizeModelId } from "./pricing-seed";
 
 export interface DashboardSummary {
   totalTokens: number;
@@ -88,6 +89,17 @@ function loadPricing(): PricingMap {
   return map;
 }
 
+const ZERO_PRICE = { input_price: 0, cache_write_price: 0, cache_read_price: 0, output_price: 0 };
+
+/**
+ * Look a model up in the pricing table, falling back to its normalized id
+ * before giving up on the zero-priced `unknown` row — session logs record
+ * variants like `claude-opus-5[1m]` that have no row of their own.
+ */
+function priceFor(pricing: PricingMap, model: string) {
+  return pricing[model] ?? pricing[normalizeModelId(model)] ?? pricing["unknown"] ?? ZERO_PRICE;
+}
+
 function costForRow(
   pricing: PricingMap,
   model: string,
@@ -98,8 +110,7 @@ function costForRow(
     output_tokens: number;
   }
 ): number {
-  const price = pricing[model] ??
-    pricing["unknown"] ?? { input_price: 0, cache_write_price: 0, cache_read_price: 0, output_price: 0 };
+  const price = priceFor(pricing, model);
   return (
     (tokens.input_tokens / 1_000_000) * price.input_price +
     (tokens.cache_creation_input_tokens / 1_000_000) * price.cache_write_price +
@@ -144,8 +155,7 @@ export function getDashboardSummary(rangeDays: number): DashboardSummary {
     totalInput += row.input_tokens;
     totalCacheRead += row.cache_read_input_tokens;
 
-    const price = pricing[row.model] ??
-      pricing["unknown"] ?? { input_price: 0, cache_write_price: 0, cache_read_price: 0, output_price: 0 };
+    const price = priceFor(pricing, row.model);
     const cacheReadCost = (row.cache_read_input_tokens / 1_000_000) * price.cache_read_price;
     const hadItBeenInputCost = (row.cache_read_input_tokens / 1_000_000) * price.input_price;
     cacheSavingsUsd += hadItBeenInputCost - cacheReadCost;
@@ -516,8 +526,7 @@ export function getDailyReport(dateISO: string): DailyReport {
       totalCostUsd += costForRow(pricing, row.model, row);
       totalInput += row.input_tokens;
       totalCacheRead += row.cache_read_input_tokens;
-      const price = pricing[row.model] ??
-        pricing["unknown"] ?? { input_price: 0, cache_write_price: 0, cache_read_price: 0, output_price: 0 };
+      const price = priceFor(pricing, row.model);
       cacheSavingsUsd +=
         (row.cache_read_input_tokens / 1_000_000) * price.input_price -
         (row.cache_read_input_tokens / 1_000_000) * price.cache_read_price;

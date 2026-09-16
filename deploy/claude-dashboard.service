@@ -4,12 +4,16 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/mnt/data/Project/WEB/claude-dashboard-usage/.next/standalone
-ExecStart=%h/.nvm/versions/node/v24.15.0/bin/node server.js
+WorkingDirectory=%h/Project/PRIBADI/web/claude-dashboard-usage/.next/standalone
+ExecStart=%h/.nvm/versions/node/v24.20.0/bin/node server.js
 Environment=PORT=4317
+Environment=HOSTNAME=127.0.0.1
 Environment=NODE_ENV=production
 Restart=on-failure
 RestartSec=5
+# Next.js exits 143 (128+SIGTERM) on a normal stop; without this systemd logs
+# every `systemctl --user stop/restart` as a failure.
+SuccessExitStatus=143
 
 [Install]
 WantedBy=default.target

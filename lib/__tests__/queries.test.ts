@@ -25,9 +25,9 @@ describe("getDashboardSummary", () => {
     const summary = getDashboardSummary(30);
     assert.strictEqual(summary.totalTokens, 3_000_000);
     assert.strictEqual(summary.activeProjectCount, 1);
-    // sonnet-5: input $3/1M, output $15/1M, cache_read $0.3/1M
-    // cost = 1*3 + 1*15 + 1*0.3 = 18.3
-    assert.ok(Math.abs(summary.totalCostUsd - 18.3) < 0.001);
+    // sonnet-5: input $2/1M, output $10/1M, cache_read $0.2/1M
+    // cost = 1*2 + 1*10 + 1*0.2 = 12.2
+    assert.ok(Math.abs(summary.totalCostUsd - 12.2) < 0.001);
     // cache efficiency = cache_read / (cache_read + input) = 1/(1+1) = 50%
     assert.ok(Math.abs(summary.cacheEfficiencyPct - 50) < 0.001);
   });
@@ -70,7 +70,7 @@ describe("getDailyReport", () => {
 
     const report = getDailyReport("2026-08-17");
     assert.strictEqual(report.totalTokens, 3_000_000);
-    assert.ok(Math.abs(report.totalCostUsd - 18.3) < 0.001);
+    assert.ok(Math.abs(report.totalCostUsd - 12.2) < 0.001);
     assert.strictEqual(report.byProject.length, 1);
     assert.strictEqual(report.byProject[0].displayName, "p1");
     assert.strictEqual(report.byModel.length, 1);

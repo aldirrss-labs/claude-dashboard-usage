@@ -98,9 +98,17 @@ function migrateProjectsTable(db: Database.Database): void {
 }
 
 function seedPricing(db: Database.Database): void {
+  // Seed rows are marked source='seed' so that shipping a corrected price in
+  // DEFAULT_PRICING actually reaches existing databases. Rows the user edited
+  // in Settings ('manual') or pulled from Anthropic ('synced') are left alone.
   const insert = db.prepare(
-    `INSERT OR IGNORE INTO model_pricing (model, input_price, cache_write_price, cache_read_price, output_price, updated_at, source)
-     VALUES (@model, @input_price, @cache_write_price, @cache_read_price, @output_price, datetime('now'), 'manual')`
+    `INSERT INTO model_pricing (model, input_price, cache_write_price, cache_read_price, output_price, updated_at, source)
+     VALUES (@model, @input_price, @cache_write_price, @cache_read_price, @output_price, datetime('now'), 'seed')
+     ON CONFLICT(model) DO UPDATE SET
+       input_price = @input_price, cache_write_price = @cache_write_price,
+       cache_read_price = @cache_read_price, output_price = @output_price,
+       updated_at = datetime('now')
+     WHERE model_pricing.source = 'seed'`
   );
   const seedAll = db.transaction((rows: typeof DEFAULT_PRICING) => {
     for (const row of rows) insert.run(row);
