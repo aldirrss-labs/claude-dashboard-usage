@@ -1,5 +1,5 @@
 import Database from "better-sqlite3";
-import { getDbPath } from "./paths";
+import { getDbPath, secureDbFiles } from "./paths";
 import { DEFAULT_PRICING } from "./pricing-seed";
 
 let dbInstance: Database.Database | null = null;
@@ -166,6 +166,8 @@ export function getDb(): Database.Database {
   const dbPath = process.env.CLAUDE_DASHBOARD_DB_PATH ?? getDbPath();
   const db = new Database(dbPath);
   db.pragma("journal_mode = WAL");
+  // After WAL mode, so the -wal/-shm sidecars exist and get locked down too.
+  secureDbFiles(dbPath);
   db.exec(SCHEMA);
   migrateProjectsTable(db);
   migrateClaudeAccountsTable(db);

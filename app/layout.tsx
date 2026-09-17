@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { startIngestScheduler } from "@/lib/ingest-scheduler";
 import { Sidebar } from "@/components/Sidebar";
 import { PageTransition } from "@/components/PageTransition";
 import "./globals.css";
 
-startIngestScheduler();
+// The scheduler now starts from instrumentation.ts, which runs at server boot.
+// Starting it here meant it waited for the first request to a dynamic route.
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
