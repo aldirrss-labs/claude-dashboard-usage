@@ -1,45 +1,81 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listAccounts } from "@/lib/account-queries";
-import { readLiveClaudeState } from "@/lib/account-swap";
-import { getAllAccountUsage } from "@/lib/account-usage";
 import {
-  DEFAULT_THRESHOLD_PERCENT,
-  type AutoSwitchStrategy,
-  evaluateAutoSwitch,
-} from "@/lib/autoswitch";
+  type AutoSwitchSettings,
+  evaluateNow,
+  getAutoSwitchSettings,
+  runAutoSwitchTick,
+  saveAutoSwitchSettings,
+} from "@/lib/autoswitch-runner";
+import type { AutoSwitchStrategy } from "@/lib/autoswitch";
 
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
-  const strategyParam = params.get("strategy");
-  const strategy: AutoSwitchStrategy = strategyParam === "consume-first" ? "consume-first" : "best";
 
-  const thresholdParam = Number(params.get("threshold"));
-  const thresholdPercent =
-    Number.isFinite(thresholdParam) && thresholdParam > 0 && thresholdParam <= 100
-      ? thresholdParam
-      : DEFAULT_THRESHOLD_PERCENT;
+  // Preview overrides let the page show the effect of a setting before saving.
+  // Read via a helper that distinguishes "absent" from a real value: Number(null)
+  // is 0, not NaN, so a bare `Number(params.get(...))` silently turns a missing
+  // parameter into a legitimate-looking 0 — which for hysteresis means quietly
+  // switching the anti-flap guard off.
+  const numberParam = (name: string, min: number, max: number): number | undefined => {
+    const raw = params.get(name);
+    if (raw === null || raw.trim() === "") return undefined;
+    const value = Number(raw);
+    return Number.isFinite(value) && value >= min && value <= max ? value : undefined;
+  };
 
-  const live = readLiveClaudeState();
-  const liveOrg = live.oauthAccount?.organizationUuid;
-  const liveAccount = live.oauthAccount?.accountUuid;
+  const overrides: Partial<AutoSwitchSettings> = {};
+  const strategy = params.get("strategy");
+  if (strategy === "best" || strategy === "consume-first") {
+    overrides.strategy = strategy as AutoSwitchStrategy;
+  }
+  const threshold = numberParam("threshold", 1, 100);
+  if (threshold !== undefined) overrides.thresholdPercent = threshold;
 
-  const usageById = await getAllAccountUsage({ force: params.get("refresh") === "1" });
+  const hysteresis = numberParam("hysteresis", 0, 100);
+  if (hysteresis !== undefined) overrides.hysteresisPercent = hysteresis;
 
-  const evaluation = evaluateAutoSwitch(
-    listAccounts().map((row) => {
-      const state = usageById.get(row.id);
-      return {
-        id: row.id,
-        label: row.label,
-        email: row.email,
-        disabled: row.disabled,
-        reloginRequired: state?.reloginRequired ?? row.reloginRequired,
-        active: row.organizationUuid === liveOrg && row.accountUuid === liveAccount,
-        usage: state?.usage ?? null,
-      };
-    }),
-    { strategy, thresholdPercent }
-  );
+  const { evaluation, settings } = await evaluateNow(overrides, {
+    force: params.get("refresh") === "1",
+  });
+  return NextResponse.json({ evaluation, settings });
+}
 
-  return NextResponse.json({ evaluation });
+export async function PUT(request: NextRequest) {
+  const body = await request.json().catch(() => ({}));
+  const current = getAutoSwitchSettings();
+
+  const next: AutoSwitchSettings = {
+    enabled: typeof body.enabled === "boolean" ? body.enabled : current.enabled,
+    strategy:
+      body.strategy === "best" || body.strategy === "consume-first" ? body.strategy : current.strategy,
+    thresholdPercent:
+      Number.isFinite(body.thresholdPercent) && body.thresholdPercent > 0 && body.thresholdPercent <= 100
+        ? body.thresholdPercent
+        : current.thresholdPercent,
+    hysteresisPercent:
+      Number.isFinite(body.hysteresisPercent) && body.hysteresisPercent >= 0 && body.hysteresisPercent <= 100
+        ? body.hysteresisPercent
+        : current.hysteresisPercent,
+    cooldownSeconds:
+      Number.isInteger(body.cooldownSeconds) && body.cooldownSeconds >= 0
+        ? body.cooldownSeconds
+        : current.cooldownSeconds,
+    restrictToGroup:
+      typeof body.restrictToGroup === "boolean" ? body.restrictToGroup : current.restrictToGroup,
+  };
+
+  saveAutoSwitchSettings(next);
+  return NextResponse.json({ settings: next });
+}
+
+/** Run one tick immediately, rather than waiting for the 5-minute scheduler. */
+export async function POST() {
+  try {
+    return NextResponse.json(await runAutoSwitchTick());
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Auto-switch tick failed." },
+      { status: 500 }
+    );
+  }
 }

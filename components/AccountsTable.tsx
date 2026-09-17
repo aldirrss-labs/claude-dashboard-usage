@@ -21,6 +21,13 @@ export interface AccountListItem {
   usageFetchedAt: string | null;
   usageError: string | null;
   usageStale: boolean;
+  groupName: string | null;
+  sessionProfile: {
+    configDir: string;
+    exists: boolean;
+    liveSessions: Array<{ pid: number; cwd: string | null }>;
+    command: string;
+  };
 }
 
 interface LiveSessionInfo {
@@ -57,6 +64,7 @@ export function AccountsTable({
   const [renameValue, setRenameValue] = useState("");
 
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [copiedId, setCopiedId] = useState<number | null>(null);
 
   async function handleSaveCurrentSession() {
     const label = newLabel.trim();
@@ -107,6 +115,29 @@ export function AccountsTable({
     );
 
   const handleRemove = (id: number) => runAction(id, () => fetch(`/api/accounts/${id}`, { method: "DELETE" }));
+
+  const handleSetGroup = (id: number, groupName: string) =>
+    runAction(id, () =>
+      fetch(`/api/accounts/${id}/group`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ groupName }),
+      })
+    );
+
+  const handlePrepareProfile = (id: number) =>
+    runAction(id, () => fetch(`/api/accounts/${id}/session`, { method: "POST" }));
+
+  async function copyCommand(id: number, command: string) {
+    try {
+      await navigator.clipboard.writeText(command);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId((current) => (current === id ? null : current)), 2000);
+    } catch {
+      // Clipboard blocked (no permission, or a non-secure origin) — the command
+      // is on screen and selectable, so this is not worth an error banner.
+    }
+  }
 
   async function handleConfirmRename(id: number) {
     const label = renameValue.trim();
@@ -213,9 +244,27 @@ export function AccountsTable({
                         ● active
                       </span>
                     )}
+                    {account.groupName && (
+                      <span
+                        className="rounded px-1.5 py-0.5 text-xs"
+                        style={{ background: "var(--surface-0)", color: "var(--text-secondary)" }}
+                      >
+                        {account.groupName}
+                      </span>
+                    )}
                     {account.disabled && (
                       <span className="text-xs" style={{ color: "var(--text-muted)" }}>
                         disabled
+                      </span>
+                    )}
+                    {account.sessionProfile.liveSessions.length > 0 && (
+                      <span
+                        className="text-xs"
+                        style={{ color: "var(--warning-500, #d97706)" }}
+                        title={`pid ${account.sessionProfile.liveSessions.map((s) => s.pid).join(", ")}`}
+                      >
+                        ▶ {account.sessionProfile.liveSessions.length} live session
+                        {account.sessionProfile.liveSessions.length > 1 ? "s" : ""}
                       </span>
                     )}
                     {lastUsed && (
@@ -313,7 +362,67 @@ export function AccountsTable({
                     </p>
                   )}
 
-                  <p className="mt-2 font-data text-xs" style={{ color: "var(--text-muted)" }}>
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                    <span style={{ color: "var(--text-muted)" }}>Group</span>
+                    <input
+                      defaultValue={account.groupName ?? ""}
+                      placeholder="none"
+                      onBlur={(e) => {
+                        if (e.target.value !== (account.groupName ?? "")) {
+                          handleSetGroup(account.id, e.target.value);
+                        }
+                      }}
+                      onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                      className="w-40 rounded border px-2 py-1 outline-none"
+                      style={{
+                        borderColor: "var(--line-hairline)",
+                        background: "var(--surface-0)",
+                        color: "var(--text-primary)",
+                      }}
+                    />
+                  </div>
+
+                  <div className="mt-3">
+                    <div className="flex flex-wrap items-center gap-3 text-xs">
+                      <span style={{ color: "var(--text-muted)" }}>Parallel session</span>
+                      {account.sessionProfile.exists ? (
+                        <button
+                          onClick={() => copyCommand(account.id, account.sessionProfile.command)}
+                          className="font-medium hover:underline"
+                          style={{ color: "var(--accent-500)" }}
+                        >
+                          {copiedId === account.id ? "Copied" : "Copy command"}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handlePrepareProfile(account.id)}
+                          disabled={busy}
+                          className="font-medium hover:underline disabled:opacity-40"
+                          style={{ color: "var(--accent-500)" }}
+                        >
+                          Prepare profile
+                        </button>
+                      )}
+                    </div>
+
+                    {account.sessionProfile.exists && (
+                      <>
+                        <pre
+                          className="font-data mt-1.5 overflow-x-auto rounded p-2 text-xs"
+                          style={{ background: "var(--surface-0)", color: "var(--text-primary)" }}
+                        >
+                          {account.sessionProfile.command}
+                        </pre>
+                        <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                          Run this in a terminal to use this account without switching the default
+                          login. Once it has run, this profile — not the dashboard — holds the newest
+                          token for the account.
+                        </p>
+                      </>
+                    )}
+                  </div>
+
+                  <p className="mt-3 font-data text-xs" style={{ color: "var(--text-muted)" }}>
                     org {account.organizationUuid}
                   </p>
                 </div>

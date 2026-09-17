@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { listAccounts } from "@/lib/account-queries";
 import { addAccountFromCurrentSession, readLiveClaudeState } from "@/lib/account-swap";
 import { type AccountUsageState, getAllAccountUsage } from "@/lib/account-usage";
+import { describeProfile } from "@/lib/session-profiles";
+import { listAccountGroups } from "@/lib/account-queries";
 
 export async function GET(request: NextRequest) {
   const force = request.nextUrl.searchParams.get("refresh") === "1";
@@ -38,13 +40,19 @@ export async function GET(request: NextRequest) {
       usageFetchedAt: usageState?.fetchedAt ?? row.usageFetchedAt,
       usageError: usageState?.error ?? null,
       usageStale: usageState?.stale ?? true,
+      groupName: row.groupName,
+      sessionProfile: describeProfile(row.id),
     };
   });
 
   const liveEmail = typeof live.oauthAccount?.emailAddress === "string" ? live.oauthAccount.emailAddress : null;
   const liveSaved = accounts.some((a) => a.active);
 
-  return NextResponse.json({ accounts, live: { email: liveEmail, saved: liveSaved } });
+  return NextResponse.json({
+    accounts,
+    live: { email: liveEmail, saved: liveSaved },
+    groups: listAccountGroups(),
+  });
 }
 
 export async function POST(request: NextRequest) {

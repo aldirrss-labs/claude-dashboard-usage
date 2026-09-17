@@ -122,6 +122,54 @@ function migrateClaudeAccountsTable(db: Database.Database): void {
   if (!columnNames.has("relogin_required")) {
     db.exec(`ALTER TABLE claude_accounts ADD COLUMN relogin_required INTEGER NOT NULL DEFAULT 0`);
   }
+  // Free-text grouping ("work-fulltime", "freelance", "personal"). Auto-switch
+  // can be confined to one group so it never rotates a work job onto a
+  // personal account, or a client's quota onto another client's.
+  if (!columnNames.has("group_name")) {
+    db.exec(`ALTER TABLE claude_accounts ADD COLUMN group_name TEXT`);
+  }
+}
+
+function migrateDirectoryMappingsTable(db: Database.Database): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS directory_mappings (
+      canonical_dir TEXT PRIMARY KEY,
+      account_id INTEGER NOT NULL REFERENCES claude_accounts(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_directory_mappings_account
+      ON directory_mappings(account_id);
+  `);
+}
+
+function migrateAutoSwitchStateTable(db: Database.Database): void {
+  // Single-row table holding cooldown / anti-flap state, so the decision is
+  // stable across server restarts rather than resetting every boot.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS autoswitch_state (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      last_switch_from INTEGER,
+      last_switch_to INTEGER,
+      last_switch_at TEXT,
+      last_trigger TEXT
+    );
+    CREATE TABLE IF NOT EXISTS autoswitch_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      enabled INTEGER NOT NULL DEFAULT 0,
+      strategy TEXT NOT NULL DEFAULT 'best',
+      threshold_percent REAL NOT NULL DEFAULT 90,
+      hysteresis_percent REAL NOT NULL DEFAULT 5,
+      cooldown_seconds INTEGER NOT NULL DEFAULT 900,
+      restrict_to_group INTEGER NOT NULL DEFAULT 1
+    );
+    CREATE TABLE IF NOT EXISTS usage_poll_state (
+      account_id INTEGER PRIMARY KEY REFERENCES claude_accounts(id) ON DELETE CASCADE,
+      next_poll_at TEXT,
+      interval_seconds INTEGER,
+      last_binding_percent REAL,
+      last_429_at TEXT
+    );
+  `);
 }
 
 function migrateProjectsTable(db: Database.Database): void {
@@ -171,6 +219,8 @@ export function getDb(): Database.Database {
   db.exec(SCHEMA);
   migrateProjectsTable(db);
   migrateClaudeAccountsTable(db);
+  migrateDirectoryMappingsTable(db);
+  migrateAutoSwitchStateTable(db);
   seedPricing(db);
   dbInstance = db;
   return db;

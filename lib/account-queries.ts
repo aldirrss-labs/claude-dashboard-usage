@@ -16,6 +16,7 @@ export interface ClaudeAccountRow {
   usageFetchedAt: string | null;
   usageError: string | null;
   reloginRequired: boolean;
+  groupName: string | null;
 }
 
 interface ClaudeAccountDbRow {
@@ -34,6 +35,7 @@ interface ClaudeAccountDbRow {
   usage_fetched_at: string | null;
   usage_error: string | null;
   relogin_required: number;
+  group_name: string | null;
 }
 
 function toRow(row: ClaudeAccountDbRow): ClaudeAccountRow {
@@ -53,6 +55,7 @@ function toRow(row: ClaudeAccountDbRow): ClaudeAccountRow {
     usageFetchedAt: row.usage_fetched_at,
     usageError: row.usage_error,
     reloginRequired: row.relogin_required === 1,
+    groupName: row.group_name,
   };
 }
 
@@ -144,4 +147,58 @@ export function saveAccountUsageError(id: number, message: string, reloginRequir
   getDb()
     .prepare(`UPDATE claude_accounts SET usage_error = ?, relogin_required = ? WHERE id = ?`)
     .run(message, reloginRequired ? 1 : 0, id);
+}
+
+export function setAccountGroup(id: number, groupName: string | null): void {
+  getDb()
+    .prepare(`UPDATE claude_accounts SET group_name = ?, updated_at = datetime('now') WHERE id = ?`)
+    .run(groupName && groupName.trim() ? groupName.trim() : null, id);
+}
+
+export interface PollState {
+  nextPollAt: string | null;
+  intervalSeconds: number | null;
+  lastBindingPercent: number | null;
+  last429At: string | null;
+}
+
+export function getPollState(accountId: number): PollState | null {
+  const row = getDb()
+    .prepare(`SELECT * FROM usage_poll_state WHERE account_id = ?`)
+    .get(accountId) as
+    | {
+        next_poll_at: string | null;
+        interval_seconds: number | null;
+        last_binding_percent: number | null;
+        last_429_at: string | null;
+      }
+    | undefined;
+  if (!row) return null;
+  return {
+    nextPollAt: row.next_poll_at,
+    intervalSeconds: row.interval_seconds,
+    lastBindingPercent: row.last_binding_percent,
+    last429At: row.last_429_at,
+  };
+}
+
+export function savePollState(accountId: number, state: PollState): void {
+  getDb()
+    .prepare(
+      `INSERT INTO usage_poll_state (account_id, next_poll_at, interval_seconds, last_binding_percent, last_429_at)
+       VALUES (@accountId, @nextPollAt, @intervalSeconds, @lastBindingPercent, @last429At)
+       ON CONFLICT(account_id) DO UPDATE SET
+         next_poll_at = @nextPollAt,
+         interval_seconds = @intervalSeconds,
+         last_binding_percent = @lastBindingPercent,
+         last_429_at = @last429At`
+    )
+    .run({ accountId, ...state });
+}
+
+export function listAccountGroups(): string[] {
+  const rows = getDb()
+    .prepare(`SELECT DISTINCT group_name FROM claude_accounts WHERE group_name IS NOT NULL ORDER BY group_name`)
+    .all() as Array<{ group_name: string }>;
+  return rows.map((r) => r.group_name);
 }

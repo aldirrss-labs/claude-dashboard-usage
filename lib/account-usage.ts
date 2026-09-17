@@ -9,15 +9,21 @@ import {
 } from "./claude-oauth";
 import {
   type ClaudeAccountRow,
+  getPollState,
   listAccounts,
   saveAccountUsage,
   saveAccountUsageError,
+  savePollState,
   updateCredentialsSnapshot,
 } from "./account-queries";
 import { readLiveClaudeState } from "./account-swap";
+import { planNextPoll } from "./poll-policy";
 
-/** Usage older than this is refetched; newer is served from the DB snapshot. */
-export const USAGE_TTL_MS = 60_000;
+/**
+ * Floor for a *forced* refresh. The adaptive policy decides when a background
+ * poll is due; this only stops the Refresh button from being a hammer.
+ */
+export const FORCE_REFRESH_FLOOR_MS = 10_000;
 
 export interface AccountUsageState {
   usage: AccountUsage | null;
@@ -118,26 +124,86 @@ function readCachedUsage(account: ClaudeAccountRow): AccountUsage | null {
   }
 }
 
-function isFresh(fetchedAt: string | null, now: number): boolean {
-  if (!fetchedAt) return false;
-  const parsed = Date.parse(`${fetchedAt.replace(" ", "T")}Z`);
-  return !Number.isNaN(parsed) && now - parsed < USAGE_TTL_MS;
+/** SQLite datetime('now') is UTC with no zone marker; ISO strings carry one. */
+function parseStamp(stamp: string | null): number | null {
+  if (!stamp) return null;
+  const parsed = Date.parse(stamp.includes("T") ? stamp : `${stamp.replace(" ", "T")}Z`);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+/** Highest utilization across every window — the one that actually binds. */
+export function bindingPercent(usage: AccountUsage | null): number | null {
+  if (!usage) return null;
+  const values: number[] = [];
+  if (usage.fiveHour) values.push(usage.fiveHour.utilization);
+  if (usage.sevenDay) values.push(usage.sevenDay.utilization);
+  for (const scoped of usage.scoped) values.push(scoped.utilization);
+  return values.length ? Math.max(...values) : null;
+}
+
+function soonestResetMs(usage: AccountUsage | null): number | null {
+  if (!usage) return null;
+  const times: number[] = [];
+  for (const iso of [usage.fiveHour?.resetsAt, usage.sevenDay?.resetsAt, ...usage.scoped.map((s) => s.resetsAt)]) {
+    const parsed = parseStamp(iso ?? null);
+    if (parsed !== null) times.push(parsed);
+  }
+  return times.length ? Math.min(...times) : null;
+}
+
+/** True when the adaptive policy says this account is not due yet. */
+function pollNotDue(accountId: number, now: number): boolean {
+  const state = getPollState(accountId);
+  const due = parseStamp(state?.nextPollAt ?? null);
+  return due !== null && now < due;
 }
 
 // One in-flight request per account, so a burst of page loads (or the watch
 // poller overlapping a manual refresh) makes a single upstream call.
 const inFlight = new Map<number, Promise<AccountUsageState>>();
 
+function recordPollPlan(
+  account: ClaudeAccountRow,
+  isActive: boolean,
+  usage: AccountUsage | null,
+  hit429: boolean
+): void {
+  const previous = getPollState(account.id);
+  const now = Date.now();
+  const last429AtMs = hit429 ? now : parseStamp(previous?.last429At ?? null);
+
+  const plan = planNextPoll({
+    isActive,
+    bindingPercent: bindingPercent(usage),
+    previousBindingPercent: previous?.lastBindingPercent ?? null,
+    previousIntervalS: previous?.intervalSeconds ?? null,
+    last429AtMs,
+    nextResetAtMs: soonestResetMs(usage),
+    nowMs: now,
+  });
+
+  savePollState(account.id, {
+    nextPollAt: new Date(plan.nextPollAtMs).toISOString(),
+    intervalSeconds: plan.intervalS,
+    lastBindingPercent: bindingPercent(usage) ?? previous?.lastBindingPercent ?? null,
+    last429At: last429AtMs === null ? null : new Date(last429AtMs).toISOString(),
+  });
+}
+
 async function refreshOne(account: ClaudeAccountRow, isActive: boolean): Promise<AccountUsageState> {
   try {
     const accessToken = await resolveAccessToken(account, isActive);
     const usage = await fetchOAuthUsage(accessToken);
     saveAccountUsage(account.id, JSON.stringify(usage));
+    recordPollPlan(account, isActive, usage, false);
     return { usage, fetchedAt: usage.fetchedAt, error: null, reloginRequired: false, stale: false };
   } catch (err) {
     const relogin = err instanceof ReloginRequiredError;
     const message = err instanceof Error ? err.message : "Usage fetch failed.";
     saveAccountUsageError(account.id, message, relogin);
+    // A 429 is the one failure that must widen the interval rather than leave
+    // it where it was, or every tick keeps hammering a throttled endpoint.
+    recordPollPlan(account, isActive, readCachedUsage(account), message.includes("(429)"));
     // Keep showing the last good numbers rather than blanking the row.
     return {
       usage: readCachedUsage(account),
@@ -155,8 +221,16 @@ export async function getAccountUsage(
   options: { force?: boolean } = {}
 ): Promise<AccountUsageState> {
   const cached = readCachedUsage(account);
+  const now = Date.now();
 
-  if (!options.force && isFresh(account.usageFetchedAt, Date.now()) && cached) {
+  // A forced refresh still respects a short floor, and always respects a 429
+  // backoff the policy is serving out — the Refresh button must not be a way
+  // to walk past congestion control.
+  const fetchedAtMs = parseStamp(account.usageFetchedAt);
+  const withinForceFloor = fetchedAtMs !== null && now - fetchedAtMs < FORCE_REFRESH_FLOOR_MS;
+  const serveCached = options.force ? withinForceFloor : pollNotDue(account.id, now);
+
+  if (serveCached && cached) {
     return {
       usage: cached,
       fetchedAt: account.usageFetchedAt,

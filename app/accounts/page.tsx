@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AccountsTable, type AccountListItem } from "@/components/AccountsTable";
 import { AutoSwitchPanel } from "@/components/AutoSwitchPanel";
+import { BackupPanel } from "@/components/BackupPanel";
+import { MappingsPanel } from "@/components/MappingsPanel";
 import { formatRelativeTime } from "@/lib/format-usage";
 import { usePersistentToggle } from "@/lib/use-persistent-toggle";
 
@@ -114,6 +116,11 @@ export default function AccountsPage() {
 
       <AutoSwitchPanel onSwitched={() => refetch(true)} reloadKey={reloadKey} />
       <AccountsTable accounts={data.accounts} live={data.live} onRefetch={() => refetch(true)} />
+      <MappingsPanel
+        accounts={data.accounts.map((a) => ({ id: a.id, label: a.label, email: a.email }))}
+        reloadKey={reloadKey}
+      />
+      <BackupPanel onImported={() => refetch(true)} />
     </main>
   );
 }
