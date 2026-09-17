@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
+import type { AccountUsage } from "@/lib/claude-oauth";
+import { formatRelativeTime } from "@/lib/format-usage";
+import { UsageBars, UsageSummaryLine } from "./UsageBars";
 
 export interface AccountListItem {
   id: number;
@@ -10,7 +13,14 @@ export interface AccountListItem {
   organizationUuid: string;
   updatedAt: string;
   active: boolean;
+  disabled: boolean;
+  lastUsedAt: string | null;
   refreshTokenExpired: boolean;
+  reloginRequired: boolean;
+  usage: AccountUsage | null;
+  usageFetchedAt: string | null;
+  usageError: string | null;
+  usageStale: boolean;
 }
 
 interface LiveSessionInfo {
@@ -40,13 +50,13 @@ export function AccountsTable({
   const [saving, setSaving] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
-  const [switchingId, setSwitchingId] = useState<number | null>(null);
-  const [switchError, setSwitchError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const [renamingId, setRenamingId] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
-  const [removingId, setRemovingId] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   async function handleSaveCurrentSession() {
     const label = newLabel.trim();
@@ -70,41 +80,45 @@ export function AccountsTable({
     }
   }
 
-  async function handleSwitch(id: number) {
-    setSwitchingId(id);
-    setSwitchError(null);
+  async function runAction(id: number, fn: () => Promise<Response>) {
+    setBusyId(id);
+    setActionError(null);
     try {
-      const res = await fetch(`/api/accounts/${id}/switch`, { method: "POST" });
+      const res = await fn();
       if (!res.ok) {
-        setSwitchError(await readError(res));
+        setActionError(await readError(res));
         return;
       }
       onRefetch();
     } finally {
-      setSwitchingId(null);
+      setBusyId(null);
     }
   }
+
+  const handleSwitch = (id: number) => runAction(id, () => fetch(`/api/accounts/${id}/switch`, { method: "POST" }));
+
+  const handleToggleDisabled = (id: number, disabled: boolean) =>
+    runAction(id, () =>
+      fetch(`/api/accounts/${id}/disabled`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ disabled }),
+      })
+    );
+
+  const handleRemove = (id: number) => runAction(id, () => fetch(`/api/accounts/${id}`, { method: "DELETE" }));
 
   async function handleConfirmRename(id: number) {
     const label = renameValue.trim();
     if (!label) return;
-    await fetch(`/api/accounts/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ label }),
-    });
     setRenamingId(null);
-    onRefetch();
-  }
-
-  async function handleRemove(id: number) {
-    setRemovingId(id);
-    try {
-      await fetch(`/api/accounts/${id}`, { method: "DELETE" });
-      onRefetch();
-    } finally {
-      setRemovingId(null);
-    }
+    await runAction(id, () =>
+      fetch(`/api/accounts/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label }),
+      })
+    );
   }
 
   return (
@@ -113,7 +127,7 @@ export function AccountsTable({
         <h2 className="mb-3 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
           Save current session
         </h2>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <input
             className="w-64 rounded border px-2 py-1.5 text-sm outline-none"
             style={{ borderColor: "var(--line-hairline)", background: "var(--surface-0)", color: "var(--text-primary)" }}
@@ -143,73 +157,97 @@ export function AccountsTable({
         )}
       </div>
 
-      {switchError && (
+      {actionError && (
         <p className="text-sm" style={{ color: "var(--danger-500, #dc2626)" }}>
-          {switchError}
+          {actionError}
         </p>
       )}
 
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left" style={{ borderBottom: "1px solid var(--line-hairline)", color: "var(--text-muted)" }}>
-            <th className="py-2 pr-4 text-xs font-medium uppercase tracking-wide">Label</th>
-            <th className="py-2 pr-4 text-xs font-medium uppercase tracking-wide">Email</th>
-            <th className="py-2 pr-4 text-xs font-medium uppercase tracking-wide">Organization</th>
-            <th className="py-2 pr-4 text-xs font-medium uppercase tracking-wide">Status</th>
-            <th className="py-2 pr-4 whitespace-nowrap text-xs font-medium uppercase tracking-wide">Last saved</th>
-            <th className="py-2 text-xs font-medium uppercase tracking-wide">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {accounts.map((account) => (
-            <tr key={account.id} style={{ borderBottom: "1px solid var(--line-hairline)" }}>
-              <td className="py-2 pr-4">
-                {renamingId === account.id ? (
-                  <input
-                    autoFocus
-                    className="rounded border px-2 py-1 text-sm outline-none"
-                    style={{ borderColor: "var(--line-hairline)", background: "var(--surface-0)", color: "var(--text-primary)" }}
-                    value={renameValue}
-                    onChange={(e) => setRenameValue(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleConfirmRename(account.id);
-                      if (e.key === "Escape") setRenamingId(null);
-                    }}
-                  />
-                ) : (
-                  <span className="font-medium" style={{ color: "var(--text-primary)" }}>
-                    {account.label}
-                  </span>
-                )}
-              </td>
-              <td className="py-2 pr-4" style={{ color: "var(--text-primary)" }}>
-                {account.email ?? "—"}
-              </td>
-              <td className="font-data py-2 pr-4 text-xs" style={{ color: "var(--text-muted)" }}>
-                {account.organizationUuid}
-              </td>
-              <td className="py-2 pr-4 text-xs">
-                {account.active ? (
-                  <span style={{ color: "var(--accent-500)" }}>● Active now</span>
-                ) : (
-                  <span style={{ color: "var(--text-muted)" }}>Saved</span>
-                )}
-                {account.refreshTokenExpired && (
-                  <div style={{ color: "var(--danger-500, #dc2626)" }}>⚠ refresh token expired</div>
-                )}
-              </td>
-              <td className="font-data py-2 pr-4 whitespace-nowrap text-xs" style={{ color: "var(--text-muted)" }}>
-                {account.updatedAt}
-              </td>
-              <td className="py-2 text-xs">
-                <div className="flex items-center gap-3">
+      <div className="space-y-2">
+        {accounts.map((account, index) => {
+          const expanded = expandedId === account.id || account.active;
+          const lastUsed = formatRelativeTime(account.lastUsedAt);
+          const busy = busyId === account.id;
+
+          return (
+            <div
+              key={account.id}
+              className="rounded-xl p-4"
+              style={{
+                background: "var(--surface-1)",
+                border: `1px solid ${account.active ? "var(--accent-500)" : "var(--line-hairline)"}`,
+                opacity: account.disabled ? 0.6 : 1,
+              }}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-data text-xs" style={{ color: "var(--text-muted)" }}>
+                      {index + 1}
+                    </span>
+
+                    {renamingId === account.id ? (
+                      <input
+                        autoFocus
+                        className="rounded border px-2 py-1 text-sm outline-none"
+                        style={{ borderColor: "var(--line-hairline)", background: "var(--surface-0)", color: "var(--text-primary)" }}
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleConfirmRename(account.id);
+                          if (e.key === "Escape") setRenamingId(null);
+                        }}
+                      />
+                    ) : (
+                      <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                        {account.email ?? account.label}
+                      </span>
+                    )}
+
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                      [{account.label}]
+                    </span>
+
+                    {account.active && (
+                      <span className="text-xs font-medium" style={{ color: "var(--accent-500)" }}>
+                        ● active
+                      </span>
+                    )}
+                    {account.disabled && (
+                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                        disabled
+                      </span>
+                    )}
+                    {lastUsed && (
+                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                        · {lastUsed}
+                      </span>
+                    )}
+                  </div>
+
+                  {!expanded && (
+                    <div className="mt-1 pl-6">
+                      <UsageSummaryLine usage={account.usage} />
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex shrink-0 flex-wrap items-center gap-3 text-xs">
                   <button
                     onClick={() => handleSwitch(account.id)}
-                    disabled={account.active || switchingId === account.id}
-                    className="font-medium hover:underline disabled:opacity-50"
+                    disabled={account.active || busy}
+                    className="font-medium hover:underline disabled:opacity-40"
                     style={{ color: "var(--accent-500)" }}
                   >
-                    {switchingId === account.id ? "Switching…" : "Switch"}
+                    {busy ? "Working…" : "Switch"}
+                  </button>
+                  <button
+                    onClick={() => setExpandedId(expanded && !account.active ? null : account.id)}
+                    disabled={account.active}
+                    className="hover:underline disabled:opacity-40"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    {expanded ? "Hide" : "Details"}
                   </button>
                   {renamingId === account.id ? (
                     <button
@@ -232,26 +270,64 @@ export function AccountsTable({
                     </button>
                   )}
                   <button
+                    onClick={() => handleToggleDisabled(account.id, !account.disabled)}
+                    disabled={busy}
+                    className="hover:underline disabled:opacity-40"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    {account.disabled ? "Enable" : "Disable"}
+                  </button>
+                  <button
                     onClick={() => handleRemove(account.id)}
-                    disabled={removingId === account.id}
-                    className="hover:underline disabled:opacity-50"
+                    disabled={busy}
+                    className="hover:underline disabled:opacity-40"
                     style={{ color: "var(--danger-500, #dc2626)" }}
                   >
-                    {removingId === account.id ? "Removing…" : "Remove"}
+                    Remove
                   </button>
                 </div>
-              </td>
-            </tr>
-          ))}
-          {accounts.length === 0 && (
-            <tr>
-              <td colSpan={6} className="py-6 text-center text-sm" style={{ color: "var(--text-muted)" }}>
-                No accounts saved yet.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+              </div>
+
+              {account.reloginRequired && (
+                <p className="mt-2 pl-6 text-xs" style={{ color: "var(--danger-500, #dc2626)" }}>
+                  ⚠ re-login needed — refresh token dead; log in with Claude Code, then save this
+                  session again to refresh the stored credentials.
+                </p>
+              )}
+
+              {expanded && (
+                <div className="mt-3 pl-6">
+                  {account.usage ? (
+                    <UsageBars usage={account.usage} dimmed={account.usageStale} />
+                  ) : (
+                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                      {account.disabled
+                        ? "Disabled — not polled for usage."
+                        : (account.usageError ?? "No usage data yet.")}
+                    </p>
+                  )}
+
+                  {account.usage && account.usageError && (
+                    <p className="mt-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
+                      Showing last known values — {account.usageError}
+                    </p>
+                  )}
+
+                  <p className="mt-2 font-data text-xs" style={{ color: "var(--text-muted)" }}>
+                    org {account.organizationUuid}
+                  </p>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {accounts.length === 0 && (
+          <p className="rounded-xl py-8 text-center text-sm" style={{ background: "var(--surface-1)", color: "var(--text-muted)" }}>
+            No accounts saved yet.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

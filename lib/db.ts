@@ -93,6 +93,37 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_claude_accounts_identity
   ON claude_accounts(organization_uuid, account_uuid);
 `;
 
+function migrateClaudeAccountsTable(db: Database.Database): void {
+  const columns = db.prepare(`PRAGMA table_info(claude_accounts)`).all() as Array<{ name: string }>;
+  const columnNames = new Set(columns.map((c) => c.name));
+
+  // Excluded from auto-switch and from usage polling, but kept on disk so the
+  // credentials survive — this is "disable", not "remove".
+  if (!columnNames.has("disabled")) {
+    db.exec(`ALTER TABLE claude_accounts ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0`);
+  }
+  // Set every time the account becomes the live one, so the list can show
+  // "3m ago" the way claude-swap's dashboard does.
+  if (!columnNames.has("last_used_at")) {
+    db.exec(`ALTER TABLE claude_accounts ADD COLUMN last_used_at TEXT`);
+  }
+  // Last successful /api/oauth/usage payload, so the UI has something to show
+  // while a refetch is in flight and after a transient failure.
+  if (!columnNames.has("usage_snapshot")) {
+    db.exec(`ALTER TABLE claude_accounts ADD COLUMN usage_snapshot TEXT`);
+  }
+  if (!columnNames.has("usage_fetched_at")) {
+    db.exec(`ALTER TABLE claude_accounts ADD COLUMN usage_fetched_at TEXT`);
+  }
+  // Sticky "this login is dead" marker, cleared when a fetch succeeds again.
+  if (!columnNames.has("usage_error")) {
+    db.exec(`ALTER TABLE claude_accounts ADD COLUMN usage_error TEXT`);
+  }
+  if (!columnNames.has("relogin_required")) {
+    db.exec(`ALTER TABLE claude_accounts ADD COLUMN relogin_required INTEGER NOT NULL DEFAULT 0`);
+  }
+}
+
 function migrateProjectsTable(db: Database.Database): void {
   const columns = db.prepare(`PRAGMA table_info(projects)`).all() as Array<{ name: string }>;
   const columnNames = new Set(columns.map((c) => c.name));
@@ -137,6 +168,7 @@ export function getDb(): Database.Database {
   db.pragma("journal_mode = WAL");
   db.exec(SCHEMA);
   migrateProjectsTable(db);
+  migrateClaudeAccountsTable(db);
   seedPricing(db);
   dbInstance = db;
   return db;

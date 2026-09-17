@@ -10,6 +10,12 @@ export interface ClaudeAccountRow {
   oauthAccountSnapshot: string;
   createdAt: string;
   updatedAt: string;
+  disabled: boolean;
+  lastUsedAt: string | null;
+  usageSnapshot: string | null;
+  usageFetchedAt: string | null;
+  usageError: string | null;
+  reloginRequired: boolean;
 }
 
 interface ClaudeAccountDbRow {
@@ -22,6 +28,12 @@ interface ClaudeAccountDbRow {
   oauth_account_snapshot: string;
   created_at: string;
   updated_at: string;
+  disabled: number;
+  last_used_at: string | null;
+  usage_snapshot: string | null;
+  usage_fetched_at: string | null;
+  usage_error: string | null;
+  relogin_required: number;
 }
 
 function toRow(row: ClaudeAccountDbRow): ClaudeAccountRow {
@@ -35,6 +47,12 @@ function toRow(row: ClaudeAccountDbRow): ClaudeAccountRow {
     oauthAccountSnapshot: row.oauth_account_snapshot,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    disabled: row.disabled === 1,
+    lastUsedAt: row.last_used_at,
+    usageSnapshot: row.usage_snapshot,
+    usageFetchedAt: row.usage_fetched_at,
+    usageError: row.usage_error,
+    reloginRequired: row.relogin_required === 1,
   };
 }
 
@@ -86,4 +104,44 @@ export function renameAccount(id: number, label: string): void {
 
 export function deleteAccount(id: number): void {
   getDb().prepare(`DELETE FROM claude_accounts WHERE id = ?`).run(id);
+}
+
+export function setAccountDisabled(id: number, disabled: boolean): void {
+  getDb()
+    .prepare(`UPDATE claude_accounts SET disabled = ?, updated_at = datetime('now') WHERE id = ?`)
+    .run(disabled ? 1 : 0, id);
+}
+
+export function markAccountUsed(id: number): void {
+  getDb().prepare(`UPDATE claude_accounts SET last_used_at = datetime('now') WHERE id = ?`).run(id);
+}
+
+/**
+ * Persist a rotated refresh token. Called after every successful refresh —
+ * the old token is single-use, so skipping this bricks the next refresh.
+ */
+export function updateCredentialsSnapshot(id: number, credentialsSnapshot: string): void {
+  getDb()
+    .prepare(`UPDATE claude_accounts SET credentials_snapshot = ?, updated_at = datetime('now') WHERE id = ?`)
+    .run(credentialsSnapshot, id);
+}
+
+export function saveAccountUsage(id: number, usageJson: string): void {
+  getDb()
+    .prepare(
+      `UPDATE claude_accounts
+         SET usage_snapshot = ?, usage_fetched_at = datetime('now'), usage_error = NULL, relogin_required = 0
+       WHERE id = ?`
+    )
+    .run(usageJson, id);
+}
+
+/**
+ * Record why a usage fetch failed. The last good `usage_snapshot` is kept so
+ * the UI can keep showing it (greyed out) instead of blanking the row.
+ */
+export function saveAccountUsageError(id: number, message: string, reloginRequired: boolean): void {
+  getDb()
+    .prepare(`UPDATE claude_accounts SET usage_error = ?, relogin_required = ? WHERE id = ?`)
+    .run(message, reloginRequired ? 1 : 0, id);
 }

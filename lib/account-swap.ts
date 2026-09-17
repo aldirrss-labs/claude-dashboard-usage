@@ -11,6 +11,7 @@ import {
   type ClaudeAccountRow,
   findAccountByIdentity,
   getAccountById,
+  markAccountUsed,
   upsertAccountFromLive,
 } from "./account-queries";
 
@@ -121,6 +122,7 @@ export async function switchToAccount(accountId: number): Promise<void> {
         const currentConfig = JSON.parse(originalConfigRaw);
         currentConfig.oauthAccount = targetOauthAccount;
         atomicWriteJson(configPath, currentConfig);
+        markAccountUsed(target.id);
       } catch (err) {
         try {
           fs.writeFileSync(credentialsPath, originalCredentialsRaw, { mode: 0o600 });
