@@ -82,7 +82,7 @@ describe("switchToAccount", () => {
   it("throws UnsavedActiveSessionError and leaves both files untouched when the live session isn't saved", async () => {
     writeFixture(LIVE_A_CREDENTIALS, LIVE_A_OAUTH_ACCOUNT); // live session, never saved
     const target = upsertAccountFromLive({
-      label: "Kerja B",
+      label: "Work B",
       email: "b@example.com",
       organizationUuid: "org-b",
       accountUuid: "acct-b",
@@ -113,7 +113,7 @@ describe("switchToAccount", () => {
     const targetCredentials = { claudeAiOauth: { accessToken: "at-b-stored" }, organizationUuid: "org-b" };
     const targetOauthAccount = { accountUuid: "acct-b", organizationUuid: "org-b", emailAddress: "b@example.com" };
     const target = upsertAccountFromLive({
-      label: "Kerja B",
+      label: "Work B",
       email: "b@example.com",
       organizationUuid: "org-b",
       accountUuid: "acct-b",
@@ -145,7 +145,7 @@ describe("switchToAccount", () => {
       oauthAccountSnapshot: JSON.stringify(LIVE_A_OAUTH_ACCOUNT),
     });
     const target = upsertAccountFromLive({
-      label: "Kerja B",
+      label: "Work B",
       email: "b@example.com",
       organizationUuid: "org-b",
       accountUuid: "acct-b",
@@ -187,7 +187,7 @@ describe("switchToAccount", () => {
 
     await addAccountFromCurrentSession("Personal (A)");
     const target = upsertAccountFromLive({
-      label: "Kerja B",
+      label: "Work B",
       email: "b@example.com",
       organizationUuid: "org-b",
       accountUuid: "acct-b",

@@ -62,11 +62,11 @@ describe("findAccountByIdentity", () => {
 describe("renameAccount", () => {
   it("changes only the label and updated_at, leaving every other column unchanged", () => {
     const original = upsertAccountFromLive(baseInput());
-    renameAccount(original.id, "Kerja Tim A");
+    renameAccount(original.id, "Work Team A");
     const renamed = getAccountById(original.id);
 
     assert.ok(renamed);
-    assert.strictEqual(renamed?.label, "Kerja Tim A");
+    assert.strictEqual(renamed?.label, "Work Team A");
     assert.strictEqual(renamed?.email, original.email);
     assert.strictEqual(renamed?.organizationUuid, original.organizationUuid);
     assert.strictEqual(renamed?.accountUuid, original.accountUuid);
@@ -79,7 +79,7 @@ describe("renameAccount", () => {
 describe("deleteAccount", () => {
   it("removes exactly the targeted row", () => {
     const a = upsertAccountFromLive(baseInput());
-    const b = upsertAccountFromLive(baseInput({ organizationUuid: "org-2", accountUuid: "acct-2", label: "Kerja Tim B" }));
+    const b = upsertAccountFromLive(baseInput({ organizationUuid: "org-2", accountUuid: "acct-2", label: "Work Team B" }));
 
     deleteAccount(a.id);
 

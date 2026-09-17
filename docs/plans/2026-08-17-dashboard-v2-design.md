@@ -2,154 +2,160 @@
 
 Date: 2026-08-17
 
-## Konteks
+## Context
 
-Lima permintaan dari user terhadap dashboard usage yang sudah berjalan:
+Five requests from the user against the usage dashboard already in service:
 
-1. Tombol "Sync Now" manual di halaman Projects dan Dashboard.
-2. Default sort project list diubah ke "last active", plus opsi sort baru.
-3. Perbaikan anomali: satu project fisik terpecah jadi banyak baris di Projects list.
-4. Tombol back di halaman detail project.
-5. Fitur tambahan agar dashboard lebih "advanced".
+1. A manual "Sync Now" button on the Projects and Dashboard pages.
+2. Change the project list's default sort to "last active", plus new sort options.
+3. Fix an anomaly: one physical project splitting into several rows in the Projects list.
+4. A back button on the project detail page.
+5. Additional features to make the dashboard more "advanced".
 
-## 1. Perbaikan duplikat project
+## 1. Fixing duplicate projects
 
-**Root cause (dikonfirmasi via query langsung ke `~/.claude-dashboard/usage.db`):** `projects.slug`
-(nama folder mentah yang dibuat Claude Code dari cwd, dash-separated) dipakai sebagai dedup key.
-Ini pecah jadi banyak baris untuk project yang sama ketika:
+**Root cause (confirmed by querying `~/.claude-dashboard/usage.db` directly):** `projects.slug`
+(the raw folder name Claude Code derives from the cwd, dash-separated) was used as the dedup key.
+It splits into several rows for the same project when:
 
-- Git worktree membuat folder `<slug>--claude-worktrees-<nama>` — secara fisik direktori berbeda,
-  tapi konseptually project yang sama.
-- `decodeProjectSlug()` (`lib/paths.ts`) merekonstruksi path dari slug dengan `slug.replace(/-/g, "/")`,
-  lossy setiap kali segmen path asli mengandung dash literal (mis. `development-agent`).
+- A git worktree creates a `<slug>--claude-worktrees-<name>` folder — physically a different
+  directory, but conceptually the same project.
+- `decodeProjectSlug()` (`lib/paths.ts`) reconstructs a path from the slug with
+  `slug.replace(/-/g, "/")`, which is lossy whenever a real path segment contains a literal dash
+  (e.g. `development-agent`).
 
-Contoh nyata dari DB: `development-agent` punya 5 baris `projects` terpisah (1 asli + 4 worktree),
-`premium` tercampur antara 2 project berbeda yang kebetulan share basename folder.
+Real examples from the database: `development-agent` had 5 separate `projects` rows (1 real + 4
+worktrees), and `premium` mixed together 2 different projects that happened to share a folder
+basename.
 
-**Pendekatan:** migrasi skema + merge data, key dedup baru berbasis `canonical_path` (bukan `slug`).
+**Approach:** schema migration + data merge, with a new dedup key based on `canonical_path`
+(not `slug`).
 
-### Perubahan skema
+### Schema change
 
 ```sql
 ALTER TABLE projects ADD COLUMN canonical_path TEXT;
 CREATE UNIQUE INDEX idx_projects_canonical_path ON projects(canonical_path);
 ```
 
-`slug` tetap ada (untuk referensi/debug) tapi bukan lagi unique constraint yang dipakai untuk dedup.
+`slug` stays (for reference/debugging) but is no longer the unique constraint used for deduping.
 
-### Normalisasi path
+### Path normalisation
 
-Fungsi baru `normalizeCanonicalPath(displayPath): string` di `lib/paths.ts`:
+A new `normalizeCanonicalPath(displayPath): string` in `lib/paths.ts`:
 
-- Strip suffix `--claude-worktrees-.*$` dari `display_path` (bukan dari `slug` — karena
-  `display_path` sudah pakai `cwd` asli yang tidak lossy untuk mayoritas baris, hasil dari
-  `ensureProject` yang sudah menyimpan `cwd` bila tersedia).
-- Baris yang `display_path`-nya berasal dari fallback lossy `decodeProjectSlug()` (ditandai lewat
-  flag/kolom `path_source` bila belum ada, atau dideteksi ulang saat migrasi dari histori) **tidak**
-  dipaksa ikut merge otomatis — tetap berdiri sendiri sebagai baris terpisah agar tidak salah
-  menggabungkan dua project berbeda yang kebetulan mirip.
+- Strip the `--claude-worktrees-.*$` suffix from `display_path` (not from `slug` — `display_path`
+  already uses the real, non-lossy `cwd` for most rows, courtesy of `ensureProject`, which already
+  stores `cwd` when it is available).
+- Rows whose `display_path` came from the lossy `decodeProjectSlug()` fallback (flagged via a
+  `path_source` column where missing, or re-detected during migration from history) are **not**
+  force-merged — they stand as separate rows, so two genuinely different projects that merely look
+  alike are never merged by mistake.
 
-### Migrasi data (one-time, dijalankan sebelum skema baru dipakai `ensureProject`)
+### Data migration (one-time, run before `ensureProject` starts using the new schema)
 
-1. **Backup wajib**: copy `usage.db` → `usage.db.bak-<timestamp>` sebelum migrasi jalan sama sekali.
-2. Hitung `canonical_path` untuk semua baris `projects` existing.
-3. Group by `canonical_path`. Untuk group dengan >1 baris:
-   - Pilih baris "primary" = `first_seen_at` paling awal.
-   - Re-point `sessions.project_id` dan `usage_events.project_id` dari baris non-primary ke primary.
-   - Hapus baris `projects` non-primary.
-4. Set `canonical_path` pada baris primary yang tersisa (dan baris tunggal lain yang tidak digroup).
-5. Log ringkasan: jumlah project sebelum/sesudah migrasi, daftar merge yang terjadi (untuk audit).
+1. **Backup first**: copy `usage.db` → `usage.db.bak-<timestamp>` before the migration runs at all.
+2. Compute `canonical_path` for every existing `projects` row.
+3. Group by `canonical_path`. For any group with more than one row:
+   - Pick the "primary" row = earliest `first_seen_at`.
+   - Re-point `sessions.project_id` and `usage_events.project_id` from the non-primary rows to the
+     primary one.
+   - Delete the non-primary `projects` rows.
+4. Set `canonical_path` on the surviving primary rows (and on the single rows that were not grouped).
+5. Log a summary: project count before/after, and the list of merges performed, for audit.
 
-### Perubahan `ensureProject()` (`lib/ingest.ts`)
+### `ensureProject()` change (`lib/ingest.ts`)
 
-Ke depan, lookup/insert menggunakan `canonical_path` (dihitung dari `cwd` yang diterima) sebagai key,
-bukan `slug` mentah. Worktree baru untuk project yang sudah ada otomatis nyambung ke baris yang sama,
-tidak membuat baris baru lagi.
+From here on, lookup/insert keys off `canonical_path` (computed from the incoming `cwd`) rather than
+the raw `slug`. A new worktree for an existing project attaches to the same row automatically
+instead of creating another one.
 
 ## 2. Sync Now button
 
-- `POST /api/ingest/sync` — memanggil `runIngestCycle()` (fungsi sama yang dipakai scheduler),
-  mengembalikan `{ filesScanned, eventsInserted, syncedAt }`.
-- `GET /api/ingest/status` — mengembalikan `{ lastSyncedAt }` dari `MAX(updated_at)` di `ingest_state`,
-  dipakai untuk menampilkan status tanpa trigger sync.
-- Komponen `SyncButton.tsx` dipakai bersama di Dashboard dan Projects page: tombol dengan state
-  loading → sukses ("Tersinkron X detik lalu"). Setelah sukses, halaman refetch data yang relevan.
+- `POST /api/ingest/sync` — calls `runIngestCycle()` (the same function the scheduler uses) and
+  returns `{ filesScanned, eventsInserted, syncedAt }`.
+- `GET /api/ingest/status` — returns `{ lastSyncedAt }` from `MAX(updated_at)` in `ingest_state`,
+  used to show status without triggering a sync.
+- A `SyncButton.tsx` component shared by the Dashboard and Projects pages: a button with a loading
+  state that resolves to success ("Synced X seconds ago"). On success the page refetches the
+  relevant data.
 
-## 3. Sort default & opsi baru (Projects page)
+## 3. Default sort and new options (Projects page)
 
-- Default `SortKey` diubah dari `"totalTokens"` ke `"lastActiveAt"`.
-- Tambah opsi sort: nama project (alfabetis), jumlah session.
-- Tambah toggle ascending/descending (klik ulang opsi yang sama membalik arah), dengan indikator
-  panah di dropdown/header.
+- Default `SortKey` changes from `"totalTokens"` to `"lastActiveAt"`.
+- New sort options: project name (alphabetical), session count.
+- An ascending/descending toggle (clicking the same option again reverses direction), with an arrow
+  indicator in the dropdown/header.
 
-## 4. Back button di halaman detail project
+## 4. Back button on the project detail page
 
-`<Link href="/projects">← Kembali ke Projects</Link>` di atas judul `app/projects/[slug]/page.tsx`.
-Bukan `router.back()`, supaya tidak nyasar keluar aplikasi jika user landing langsung via URL.
+`<Link href="/projects">← Back to Projects</Link>` above the title in
+`app/projects/[slug]/page.tsx`. Not `router.back()`, so a user who landed directly via URL is not
+thrown out of the app.
 
-## 5. Fitur advanced
+## 5. Advanced features
 
-### A. Analisis biaya & efisiensi
+### A. Cost and efficiency analysis
 
-- Card "Cache savings" di Dashboard: estimasi $ yang dihemat dari cache read dibanding jika token
-  itu dihitung sebagai input biasa, dihitung dari `model_pricing`.
-- Proyeksi biaya bulanan: rata-rata biaya harian di range terpilih × 30, ditampilkan sebagai teks
-  kecil di bawah card "Estimated cost".
+- A "Cache savings" card on the Dashboard: the estimated dollars saved by cache reads compared with
+  those tokens being billed as ordinary input, computed from `model_pricing`.
+- Monthly cost projection: average daily cost over the selected range × 30, shown as small text
+  under the "Estimated cost" card.
 
-### B. Perbandingan & trend project
+### B. Project comparison and trend
 
-- Tabel "Top Projects" di Dashboard (5 teratas by cost) dengan sparkline mini token/hari per baris —
-  fitur yang memang sudah direncanakan di desain awal tapi belum dibangun.
-- Kolom week-over-week % di tabel Projects, dibanding minggu sebelumnya.
+- A "Top Projects" table on the Dashboard (top 5 by cost) with a mini tokens/day sparkline per row —
+  a feature already planned in the original design but not yet built.
+- A week-over-week % column in the Projects table, against the previous week.
 
-### C. Detail session lebih dalam
+### C. Deeper session detail
 
-- Mini bar chart token per session di atas tabel sessions (halaman detail project).
-- Kolom "Model" per session di tabel sessions (join ke `usage_events.model`, ambil model dominan
-  per session).
+- A mini bar chart of tokens per session above the sessions table (project detail page).
+- A "Model" column per session in the sessions table (joined from `usage_events.model`, taking the
+  dominant model per session).
 
-### D. Alerting & monitoring
+### D. Alerting and monitoring
 
-- Input threshold biaya harian di Settings, disimpan ke tabel `budget_limits` (sudah ada di skema,
-  belum dipakai).
-- Badge peringatan visual di Dashboard jika biaya hari ini melebihi threshold. Tidak ada notifikasi
-  push/email — di luar scope, butuh infra terpisah.
+- A daily cost threshold input in Settings, stored in the `budget_limits` table (already in the
+  schema, unused so far).
+- A visual warning badge on the Dashboard when today's cost exceeds the threshold. No push or email
+  notification — out of scope, that needs separate infrastructure.
 
-## Urutan implementasi
+## Implementation order
 
-1. Migrasi duplikat project (paling berisiko, sentuh data production — dikerjakan & diverifikasi
-   duluan sebelum fitur lain dibangun di atasnya).
+1. Duplicate-project migration (the riskiest, and it touches production data — done and verified
+   first, before anything else is built on top of it).
 2. Sync Now button + status.
-3. Sort default + opsi baru + back button (perubahan kecil, cepat).
-4. Fitur advanced A–D.
+3. Default sort + new options + back button (small, quick changes).
+4. Advanced features A–D.
 
 ---
 
 # Dashboard v3 — follow-up (same date)
 
-Follow-up request setelah v2 di-deploy:
+Follow-up requests after v2 was deployed:
 
-1. Klarifikasi: "WoW" = Week-over-Week (kolom % perubahan biaya vs minggu lalu). Membingungkan →
-   diperjelas jadi bagian dari poin 2.
-2. Ubah semua teks UI (Bahasa Indonesia yang ditambahkan di v2) ke Bahasa Inggris.
-3. Laporan email harian via SMTP Gmail.
-4. Ganti tema visual meniru referensi Framer "Insightix" (sidebar terang + aksen biru, card metrics
-   besar, chart gradient halus).
-5. Tambah link "View Claude Pricing" di halaman Settings.
-6. (Ditambahkan pertengahan sesi) Ganti chart dari Recharts polos ke Tremor (`@tremor/react`) untuk
-   visual yang lebih modern, selaras dengan gaya Insightix.
+1. Clarification: "WoW" = week-over-week (the % change in cost against last week). Confusing, so it
+   was folded into point 2.
+2. Change all UI text (the Indonesian added in v2) to English.
+3. A daily email report over Gmail SMTP.
+4. Change the visual theme to follow the Framer "Insightix" reference (light sidebar + blue accent,
+   large metric cards, soft gradient charts).
+5. Add a "View Claude Pricing" link on the Settings page.
+6. (Added mid-session) Move the charts from plain Recharts to Tremor (`@tremor/react`) for a more
+   modern look, in keeping with the Insightix style.
 
-## 6. Bahasa Inggris + link pricing
+## 6. English copy + pricing link
 
-Semua string UI yang ditambahkan di v2 (SyncButton status, budget badge, label "Budget harian",
-kolom WoW, dsb.) diterjemahkan ke Inggris. Kolom WoW diberi header penuh "Week-over-week" dengan
-`title` tooltip menjelaskan artinya. Settings page dapat link
-`<a href="https://www.anthropic.com/pricing" target="_blank">View Claude Pricing ↗</a>` — URL sama
-yang sudah dipakai `/api/pricing/sync` untuk scraping.
+Every UI string added in v2 (SyncButton status, budget badge, the "Daily budget" label, the WoW
+column, and so on) was translated into English. The WoW column got the full "Week-over-week" header
+with a `title` tooltip explaining what it means. The Settings page got a
+`<a href="https://www.anthropic.com/pricing" target="_blank">View Claude Pricing ↗</a>` link — the
+same URL `/api/pricing/sync` already scrapes.
 
-## 7. Laporan email harian (SMTP Gmail)
+## 7. Daily email report (Gmail SMTP)
 
-**Skema baru:**
+**New schema:**
 
 ```sql
 CREATE TABLE email_settings (
@@ -166,64 +172,64 @@ CREATE TABLE email_log (
 );
 ```
 
-Kredensial SMTP (Gmail App Password) disimpan plain text di `usage.db` lokal — trade-off yang
-disetujui user demi kemudahan edit dari UI Settings (aplikasi single-user, DB tidak exposed publik).
+The SMTP credentials (a Gmail App Password) are stored in plain text in the local `usage.db` — a
+trade-off the user accepted for the convenience of editing them from the Settings UI (single-user
+app, database not publicly exposed).
 
-**Trigger:** di dalam siklus ingest yang sudah berjalan tiap 5 menit (`lib/ingest-scheduler.ts`).
-Tiap siklus: jika waktu sekarang sudah lewat tengah malam DAN `email_log` belum punya baris untuk
-tanggal kemarin DAN `email_settings.enabled = 1`, generate + kirim laporan untuk kemarin, lalu catat
-ke `email_log`. Toleransi delay hingga 5 menit dari tengah malam persis — dapat diterima, tidak perlu
-cron OS terpisah.
+**Trigger:** inside the ingest cycle that already runs every 5 minutes
+(`lib/ingest-scheduler.ts`). On each cycle: if the clock is past midnight AND `email_log` has no row
+for yesterday AND `email_settings.enabled = 1`, generate and send yesterday's report, then record it
+in `email_log`. Up to 5 minutes of delay past midnight is acceptable — no separate OS cron needed.
 
-**Isi laporan (HTML email, hanya data hari yang baru lewat, apa pun kondisi threshold-nya):**
-- Total token & biaya hari itu.
-- Breakdown per project yang aktif hari itu.
-- Breakdown per model.
-- Cache efficiency % dan cache savings $ hari itu.
-- Perbandingan % vs hari sebelumnya (token & biaya).
+**Report contents (HTML email, covering only the day that just ended, whatever the threshold
+status):**
+- Total tokens and cost for that day.
+- A breakdown by project active that day.
+- A breakdown by model.
+- Cache efficiency % and cache savings $ for that day.
+- % comparison against the previous day (tokens and cost).
 
-**Library:** `nodemailer`, transport Gmail SMTP dengan App Password.
+**Library:** `nodemailer`, Gmail SMTP transport with an App Password.
 
-**UI Settings:** form baru "Email Reports" — SMTP user, App Password (input type password), recipient
-email, toggle enable/disable, tombol "Send Test Email" (kirim laporan untuk hari ini secara langsung,
-tanpa menunggu tengah malam, untuk verifikasi konfigurasi).
+**Settings UI:** a new "Email Reports" form — SMTP user, App Password (password input), recipient
+email, an enable/disable toggle, and a "Send Test Email" button (sends today's report immediately,
+without waiting for midnight, to verify the configuration).
 
-Badge peringatan budget di Dashboard (v2, bagian 5.D) **tetap dipertahankan**, terpisah dari email —
-email adalah ringkasan rutin, badge adalah indikator real-time saat browsing dashboard.
+The Dashboard budget warning badge (v2, section 5.D) **stays**, separate from email — the email is a
+routine summary, the badge is a real-time indicator while browsing the dashboard.
 
-## 8. Tema visual — gaya Insightix
+## 8. Visual theme — Insightix style
 
-Referensi: Framer marketplace template "Insightix" (sidebar putih, aksen biru terang `#3b82f6`-ish,
-card metrics besar dengan angka bold + trend indicator kecil, area chart gradient biru lembut).
+Reference: the Framer marketplace template "Insightix" (white sidebar, bright blue accent around
+`#3b82f6`, large metric cards with bold numbers plus a small trend indicator, soft blue gradient
+area charts).
 
-- Sidebar: dari gelap (command-center theme, v1) → putih/terang dengan border tipis kanan, ikon
-  abu-abu, item aktif = background biru muda + teks & ikon biru.
-- Card metrics: diperbesar, angka lebih bold, ditambah baris trend kecil (↑/↓ vs periode
-  sebelumnya) di bawah tiap angka — pola yang sama dengan `WeekOverWeekBadge` yang sudah ada,
-  digeneralisasi jadi komponen `TrendIndicator` dipakai ulang di `SummaryCard`.
-- Tidak ada dark mode — satu tema terang saja, sesuai keputusan user.
-- Warna aksen biru diselaraskan dengan `COLOR_INPUT` (`#2a78d6`) yang sudah dipakai di chart, supaya
-  konsisten dengan palet kategori data yang sudah divalidasi (dataviz skill).
+- Sidebar: from dark (the v1 command-center theme) to white/light with a thin right border, grey
+  icons, and an active item shown as a pale blue background with blue text and icon.
+- Metric cards: larger, bolder numbers, plus a small trend line (↑/↓ against the previous period)
+  under each figure — the same pattern as the existing `WeekOverWeekBadge`, generalised into a
+  `TrendIndicator` component reused by `SummaryCard`.
+- No dark mode — a single light theme, per the user's decision.
+- The blue accent is aligned with `COLOR_INPUT` (`#2a78d6`), already used in the charts, so it stays
+  consistent with the validated categorical data palette (dataviz skill).
 
-## 9. Migrasi chart ke Tremor
+## 9. Chart migration to Tremor
 
-Ganti `UsageTimeSeriesChart`, `ModelBreakdownChart`, `TopProjectsTable` (sparkline), dan
-`SessionTokensChart` dari Recharts mentah ke komponen `@tremor/react` (`AreaChart`, `BarChart`,
-`SparkAreaChart`) — library yang dibangun khusus untuk dashboard analytics, stylingnya selaras
-dengan referensi Insightix (gradient halus, animasi transisi, tooltip lebih polished). Tremor
-sendiri dibangun di atas Recharts, jadi migrasi ini adalah penggantian lapisan styling/API, bukan
-penulisan ulang total dari nol.
+Move `UsageTimeSeriesChart`, `ModelBreakdownChart`, `TopProjectsTable` (sparkline) and
+`SessionTokensChart` from raw Recharts to `@tremor/react` components (`AreaChart`, `BarChart`,
+`SparkAreaChart`) — a library built specifically for analytics dashboards, whose styling matches the
+Insightix reference (soft gradients, transition animations, more polished tooltips). Tremor is
+itself built on Recharts, so this is a styling/API layer swap rather than a rewrite from scratch.
 
-**Catatan kompatibilitas (ditemukan saat implementasi):**
+**Compatibility notes (found during implementation):**
 
-- `@tremor/react` versi stabil (3.18.x) hanya mendukung React ^18, sedangkan project ini React
-  19.2.8. Dipakai versi pra-rilis `4.0.0-beta-tremor-v4.4`, satu-satunya versi published yang
-  declare peer dep `react: ^19.0.0`. Risiko: API bisa berubah saat rilis stabil resmi nanti.
-- Tremor generate class warna chart (`fill-blue-500`, dst) secara dinamis di runtime, bukan
-  literal string — jadi Tailwind v4's static content scanner tidak pernah menemukannya, chart
-  render tanpa warna (hitam/abu-abu semua). Dokumentasi resmi Tremor untuk Tailwind v3 mengatasi
-  ini lewat `content` + `safelist` di `tailwind.config.ts`, tapi project ini pakai Tailwind v4
-  (tanpa config file, CSS-first). Diperbaiki dengan `@source inline("...")` di `app/globals.css`
-  yang secara eksplisit men-source semua kombinasi warna/shade yang dipakai (`blue`, `orange`,
-  `emerald`, `amber`, `gray` × beberapa shade). Perlu ditambah manual jika warna baru dipakai
-  Tremor di masa depan.
+- The stable `@tremor/react` (3.18.x) only supports React ^18, while this project is on React
+  19.2.8. We use the pre-release `4.0.0-beta-tremor-v4.4`, the only published version declaring a
+  `react: ^19.0.0` peer dependency. Risk: the API may change when the stable release lands.
+- Tremor generates chart colour classes (`fill-blue-500`, etc.) dynamically at runtime rather than
+  as literal strings, so Tailwind v4's static content scanner never finds them and the charts render
+  with no colour at all (everything black/grey). Tremor's official Tailwind v3 documentation solves
+  this with `content` + `safelist` in `tailwind.config.ts`, but this project is on Tailwind v4 (no
+  config file, CSS-first). Fixed with `@source inline("...")` in `app/globals.css`, which explicitly
+  sources every colour/shade combination in use (`blue`, `orange`, `emerald`, `amber`, `gray` ×
+  several shades). It must be extended by hand if Tremor is given new colours in future.

@@ -162,7 +162,7 @@ export function AccountsTable({
           <input
             className="w-64 rounded border px-2 py-1.5 text-sm outline-none"
             style={{ borderColor: "var(--line-hairline)", background: "var(--surface-0)", color: "var(--text-primary)" }}
-            placeholder="Label (e.g. Kerja Tim A)"
+            placeholder="Label (e.g. Work Team A)"
             value={newLabel}
             onChange={(e) => setNewLabel(e.target.value)}
           />
