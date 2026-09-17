@@ -21,7 +21,10 @@ export async function GET() {
     };
   });
 
-  return NextResponse.json({ accounts });
+  const liveEmail = typeof live.oauthAccount?.emailAddress === "string" ? live.oauthAccount.emailAddress : null;
+  const liveSaved = accounts.some((a) => a.active);
+
+  return NextResponse.json({ accounts, live: { email: liveEmail, saved: liveSaved } });
 }
 
 export async function POST(request: NextRequest) {
