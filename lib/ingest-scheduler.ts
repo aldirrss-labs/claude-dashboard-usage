@@ -1,6 +1,7 @@
 import { runIngestCycle } from "./ingest";
 import { maybeSendDailyReport } from "./daily-report-scheduler";
 import { runAutoSwitchTick } from "./autoswitch-runner";
+import { recordActiveAccount } from "./account-activity";
 
 const FIVE_MINUTES_MS = 5 * 60 * 1000;
 
@@ -14,6 +15,17 @@ function runCycle(): void {
     runIngestCycle();
   } catch (err) {
     console.error("[ingest] cycle failed:", err);
+  }
+
+  // Note which account is live, so usage can be attributed to one. A switch
+  // made outside the dashboard is only seen here, which is why this runs every
+  // cycle rather than only on our own switches.
+  try {
+    if (recordActiveAccount("poll")) {
+      console.log("[accounts] active account changed");
+    }
+  } catch (err) {
+    console.error("[accounts] could not record the active account:", err);
   }
   maybeSendDailyReport().catch((err) => console.error("[daily-report] cycle failed:", err));
 

@@ -7,6 +7,8 @@ export interface ParsedUsageLine {
   sessionId: string;
   timestamp: string;
   cwd: string | null;
+  gitBranch: string | null;
+  effort: string | null;
   model: string;
   input_tokens: number;
   cache_creation_input_tokens: number;
@@ -42,6 +44,8 @@ export function parseUsageLine(line: string): ParsedUsageLine | null {
     sessionId,
     timestamp,
     cwd: typeof obj.cwd === "string" ? obj.cwd : null,
+    gitBranch: typeof obj.gitBranch === "string" && obj.gitBranch ? obj.gitBranch : null,
+    effort: typeof obj.effort === "string" && obj.effort ? obj.effort : null,
     model: typeof message?.model === "string" ? (message.model as string) : "unknown",
     input_tokens: Number(usage.input_tokens ?? 0),
     cache_creation_input_tokens: Number(usage.cache_creation_input_tokens ?? 0),
@@ -117,8 +121,8 @@ export function runIngestCycle(projectsDir: string = getClaudeProjectsDir()): In
   let eventsInserted = 0;
 
   const insertEvent = db.prepare(
-    `INSERT INTO usage_events (session_id, project_id, timestamp, model, input_tokens, cache_creation_input_tokens, cache_read_input_tokens, output_tokens)
-     VALUES (@sessionId, @projectId, @timestamp, @model, @input_tokens, @cache_creation_input_tokens, @cache_read_input_tokens, @output_tokens)`
+    `INSERT INTO usage_events (session_id, project_id, timestamp, model, input_tokens, cache_creation_input_tokens, cache_read_input_tokens, output_tokens, git_branch, effort)
+     VALUES (@sessionId, @projectId, @timestamp, @model, @input_tokens, @cache_creation_input_tokens, @cache_read_input_tokens, @output_tokens, @gitBranch, @effort)`
   );
   const bumpSession = db.prepare(`UPDATE sessions SET ended_at = ?, message_count = message_count + 1 WHERE id = ?`);
   const bumpProject = db.prepare(`UPDATE projects SET last_active_at = ? WHERE id = ?`);
@@ -168,6 +172,8 @@ export function runIngestCycle(projectsDir: string = getClaudeProjectsDir()): In
           cache_creation_input_tokens: parsed.cache_creation_input_tokens,
           cache_read_input_tokens: parsed.cache_read_input_tokens,
           output_tokens: parsed.output_tokens,
+          gitBranch: parsed.gitBranch,
+          effort: parsed.effort,
         });
         bumpSession.run(parsed.timestamp, parsed.sessionId);
         bumpProject.run(parsed.timestamp, projectId);

@@ -130,6 +130,49 @@ function migrateClaudeAccountsTable(db: Database.Database): void {
   }
 }
 
+function migrateUsageEventColumns(db: Database.Database): void {
+  const columns = db.prepare(`PRAGMA table_info(usage_events)`).all() as Array<{ name: string }>;
+  const columnNames = new Set(columns.map((c) => c.name));
+
+  // Both are present on every assistant line Claude Code writes but were never
+  // captured. Old rows stay NULL — there is no way to recover them, since the
+  // ingest offset has already passed those bytes.
+  if (!columnNames.has("git_branch")) {
+    db.exec(`ALTER TABLE usage_events ADD COLUMN git_branch TEXT`);
+  }
+  if (!columnNames.has("effort")) {
+    db.exec(`ALTER TABLE usage_events ADD COLUMN effort TEXT`);
+  }
+}
+
+/**
+ * When each saved account was the active login.
+ *
+ * Claude Code's session logs carry no account identity whatsoever — no
+ * accountUuid, no organizationUuid, nothing — so usage cannot be attributed to
+ * an account from the logs alone. This table records the periods instead, and
+ * events are attributed by falling inside one. Two consequences worth knowing:
+ * attribution only exists from the moment this table starts being written, and
+ * a switch made outside the dashboard is only noticed on the next ingest tick,
+ * so a boundary can be off by up to one polling interval.
+ */
+function migrateAccountActivationsTable(db: Database.Database): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS account_activations (
+      id INTEGER PRIMARY KEY,
+      account_id INTEGER REFERENCES claude_accounts(id) ON DELETE SET NULL,
+      organization_uuid TEXT NOT NULL,
+      account_uuid TEXT NOT NULL,
+      label TEXT,
+      started_at TEXT NOT NULL,
+      ended_at TEXT,
+      source TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_account_activations_window
+      ON account_activations(started_at, ended_at);
+  `);
+}
+
 function migrateDirectoryMappingsTable(db: Database.Database): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS directory_mappings (
@@ -219,6 +262,8 @@ export function getDb(): Database.Database {
   db.exec(SCHEMA);
   migrateProjectsTable(db);
   migrateClaudeAccountsTable(db);
+  migrateUsageEventColumns(db);
+  migrateAccountActivationsTable(db);
   migrateDirectoryMappingsTable(db);
   migrateAutoSwitchStateTable(db);
   seedPricing(db);

@@ -28,12 +28,39 @@ describe("parseUsageLine", () => {
       sessionId: "abc-123",
       timestamp: "2026-08-14T10:00:00.000Z",
       cwd: "/mnt/data/Project/WEB/artist-catalog",
+      gitBranch: null,
+      effort: null,
       model: "claude-sonnet-5",
       input_tokens: 3,
       cache_creation_input_tokens: 100,
       cache_read_input_tokens: 200,
       output_tokens: 50,
     });
+  });
+
+  it("captures gitBranch and effort when the line carries them", () => {
+    const line = JSON.stringify({
+      type: "assistant",
+      sessionId: "abc-123",
+      timestamp: "2026-08-14T10:00:00.000Z",
+      gitBranch: "feat/new-thing",
+      effort: "high",
+      message: { model: "claude-opus-5", usage: { output_tokens: 1 } },
+    });
+    const result = parseUsageLine(line);
+    assert.strictEqual(result?.gitBranch, "feat/new-thing");
+    assert.strictEqual(result?.effort, "high");
+  });
+
+  it("treats an empty gitBranch as absent rather than as a branch named ''", () => {
+    const line = JSON.stringify({
+      type: "assistant",
+      sessionId: "abc-123",
+      timestamp: "2026-08-14T10:00:00.000Z",
+      gitBranch: "",
+      message: { model: "claude-opus-5", usage: { output_tokens: 1 } },
+    });
+    assert.strictEqual(parseUsageLine(line)?.gitBranch, null);
   });
 
   it("returns null for non-assistant lines", () => {

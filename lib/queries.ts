@@ -533,6 +533,202 @@ export function getActivityHeatmap(rangeDays: number): ActivityCell[] {
   return rows.map((r) => ({ dayOfWeek: r.dow, hour: r.hour, events: r.events, tokens: r.tokens ?? 0 }));
 }
 
+export interface AccountUsageRow {
+  key: string;
+  label: string;
+  attributed: boolean;
+  tokens: number;
+  costUsd: number;
+  events: number;
+  sessions: number;
+}
+
+/**
+ * Usage split by which account was logged in at the time.
+ *
+ * The join is a time-range one against `account_activations`, because Claude
+ * Code's logs carry no account identity to join on directly. Events that fall
+ * in no recorded period — everything from before this tracking existed — are
+ * collected under a single "Unattributed" row rather than silently dropped, so
+ * the split always adds up to the project's real total.
+ *
+ * Pass a slug to scope it to one project, or omit for the whole machine.
+ */
+export function getUsageByAccount(rangeDays: number, projectSlug?: string): AccountUsageRow[] {
+  const db = getDb();
+  const pricing = loadPricing();
+
+  const rows = db
+    .prepare(
+      `SELECT
+         a.id            AS activation_id,
+         a.label         AS label,
+         a.account_uuid  AS account_uuid,
+         e.model         AS model,
+         e.session_id    AS session_id,
+         COUNT(*)        AS events,
+         SUM(e.input_tokens) as input_tokens,
+         SUM(e.cache_creation_input_tokens) as cache_creation_input_tokens,
+         SUM(e.cache_read_input_tokens) as cache_read_input_tokens,
+         SUM(e.output_tokens) as output_tokens
+       FROM usage_events e
+       LEFT JOIN projects p ON p.id = e.project_id
+       LEFT JOIN account_activations a
+              ON e.timestamp >= a.started_at
+             AND (a.ended_at IS NULL OR e.timestamp < a.ended_at)
+      WHERE e.timestamp >= datetime('now', ?)
+        AND (? IS NULL OR p.slug = ?)
+      GROUP BY a.id, e.model, e.session_id`
+    )
+    .all(`-${rangeDays} days`, projectSlug ?? null, projectSlug ?? null) as Array<{
+    activation_id: number | null;
+    label: string | null;
+    account_uuid: string | null;
+    model: string;
+    session_id: string;
+    events: number;
+    input_tokens: number;
+    cache_creation_input_tokens: number;
+    cache_read_input_tokens: number;
+    output_tokens: number;
+  }>;
+
+  // Fold by account identity rather than by activation: an account switched
+  // away from and back to has several periods but is one account to the reader.
+  const byAccount = new Map<string, AccountUsageRow & { sessionIds: Set<string> }>();
+
+  for (const row of rows) {
+    const attributed = row.account_uuid !== null;
+    const key = attributed ? row.account_uuid! : "__unattributed__";
+    const entry =
+      byAccount.get(key) ??
+      ({
+        key,
+        label: attributed ? (row.label ?? "Unnamed account") : "Unattributed",
+        attributed,
+        tokens: 0,
+        costUsd: 0,
+        events: 0,
+        sessions: 0,
+        sessionIds: new Set<string>(),
+      } satisfies AccountUsageRow & { sessionIds: Set<string> });
+
+    entry.tokens +=
+      row.input_tokens + row.cache_creation_input_tokens + row.cache_read_input_tokens + row.output_tokens;
+    entry.costUsd += costForRow(pricing, row.model, row);
+    entry.events += row.events;
+    entry.sessionIds.add(row.session_id);
+    byAccount.set(key, entry);
+  }
+
+  return [...byAccount.values()]
+    .map(({ sessionIds, ...rest }) => ({ ...rest, sessions: sessionIds.size }))
+    .sort((a, b) => {
+      // Unattributed always sorts last: it is a caveat, not a participant.
+      if (a.attributed !== b.attributed) return a.attributed ? -1 : 1;
+      return b.costUsd - a.costUsd;
+    });
+}
+
+export interface ProjectDailyPoint {
+  date: string;
+  tokens: number;
+  costUsd: number;
+}
+
+/** Daily cost and tokens for one project — the shape of its spend over time. */
+export function getProjectDailySeries(slug: string, rangeDays: number): ProjectDailyPoint[] {
+  const db = getDb();
+  const pricing = loadPricing();
+
+  const rows = db
+    .prepare(
+      `SELECT substr(e.timestamp, 1, 10) as day, e.model,
+              SUM(e.input_tokens) as input_tokens,
+              SUM(e.cache_creation_input_tokens) as cache_creation_input_tokens,
+              SUM(e.cache_read_input_tokens) as cache_read_input_tokens,
+              SUM(e.output_tokens) as output_tokens
+         FROM usage_events e JOIN projects p ON p.id = e.project_id
+        WHERE p.slug = ? AND e.timestamp >= datetime('now', ?)
+        GROUP BY day, e.model ORDER BY day`
+    )
+    .all(slug, `-${rangeDays} days`) as Array<{
+    day: string;
+    model: string;
+    input_tokens: number;
+    cache_creation_input_tokens: number;
+    cache_read_input_tokens: number;
+    output_tokens: number;
+  }>;
+
+  const byDay = new Map<string, ProjectDailyPoint>();
+  for (const row of rows) {
+    const entry = byDay.get(row.day) ?? { date: row.day, tokens: 0, costUsd: 0 };
+    entry.tokens +=
+      row.input_tokens + row.cache_creation_input_tokens + row.cache_read_input_tokens + row.output_tokens;
+    entry.costUsd += costForRow(pricing, row.model, row);
+    byDay.set(row.day, entry);
+  }
+  return [...byDay.values()];
+}
+
+export interface BranchUsageRow {
+  branch: string;
+  tokens: number;
+  costUsd: number;
+  sessions: number;
+}
+
+/**
+ * Spend per git branch within a project.
+ *
+ * `git_branch` was only added to the ingest recently, so rows written before
+ * that have NULL and are grouped as "unknown" rather than dropped.
+ */
+export function getProjectBranchUsage(slug: string, rangeDays: number): BranchUsageRow[] {
+  const db = getDb();
+  const pricing = loadPricing();
+
+  const rows = db
+    .prepare(
+      `SELECT COALESCE(NULLIF(e.git_branch, ''), 'unknown') as branch, e.model, e.session_id,
+              SUM(e.input_tokens) as input_tokens,
+              SUM(e.cache_creation_input_tokens) as cache_creation_input_tokens,
+              SUM(e.cache_read_input_tokens) as cache_read_input_tokens,
+              SUM(e.output_tokens) as output_tokens
+         FROM usage_events e JOIN projects p ON p.id = e.project_id
+        WHERE p.slug = ? AND e.timestamp >= datetime('now', ?)
+        GROUP BY branch, e.model, e.session_id`
+    )
+    .all(slug, `-${rangeDays} days`) as Array<{
+    branch: string;
+    model: string;
+    session_id: string;
+    input_tokens: number;
+    cache_creation_input_tokens: number;
+    cache_read_input_tokens: number;
+    output_tokens: number;
+  }>;
+
+  const byBranch = new Map<string, BranchUsageRow & { sessionIds: Set<string> }>();
+  for (const row of rows) {
+    const entry =
+      byBranch.get(row.branch) ??
+      ({ branch: row.branch, tokens: 0, costUsd: 0, sessions: 0, sessionIds: new Set<string>() } as BranchUsageRow & {
+        sessionIds: Set<string>;
+      });
+    entry.tokens +=
+      row.input_tokens + row.cache_creation_input_tokens + row.cache_read_input_tokens + row.output_tokens;
+    entry.costUsd += costForRow(pricing, row.model, row);
+    entry.sessionIds.add(row.session_id);
+    byBranch.set(row.branch, entry);
+  }
+
+  return [...byBranch.values()]
+    .map(({ sessionIds, ...rest }) => ({ ...rest, sessions: sessionIds.size }))
+    .sort((a, b) => b.costUsd - a.costUsd);
+}
+
 export function listProjects(): ProjectListRow[] {
   const db = getDb();
   const pricing = loadPricing();
