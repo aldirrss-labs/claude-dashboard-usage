@@ -44,6 +44,26 @@ export function formatReset(iso: string | null, now = Date.now()): string | null
   return `resets ${countdown} · ${stamp}`;
 }
 
+/**
+ * Short token counts for axes and dense tables: 12,109,263,354 -> "12.1B".
+ *
+ * Chart axes are the reason this exists — a full-length token count needs more
+ * width than any sane y-axis gutter, so it gets clipped mid-number and renders
+ * as a meaningless "000,000".
+ */
+export function formatCompact(n: number): string {
+  const abs = Math.abs(n);
+  if (abs >= 1e12) return `${(n / 1e12).toFixed(2)}T`;
+  if (abs >= 1e9) return `${(n / 1e9).toFixed(2)}B`;
+  if (abs >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+  if (abs >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
+  return Math.round(n).toLocaleString();
+}
+
+export function formatUsd(n: number): string {
+  return `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 export function formatCents(cents: number, currency = "USD"): string {
   return (cents / 100).toLocaleString(undefined, {
     style: "currency",

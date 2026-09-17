@@ -1,6 +1,7 @@
 "use client";
 
 import { BarChart } from "@tremor/react";
+import { formatCompact } from "@/lib/format-usage";
 
 interface SessionPoint {
   id: string;
@@ -23,7 +24,7 @@ export function SessionTokensChart({ sessions }: { sessions: SessionPoint[] }) {
       index="label"
       categories={["Tokens"]}
       colors={["lime"]}
-      valueFormatter={(v) => Math.round(v).toLocaleString()}
+      valueFormatter={(v) => formatCompact(v)}
       className="h-36"
       showLegend={false}
     />

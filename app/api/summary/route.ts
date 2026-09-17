@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  getDashboardSummary,
-  getUsageTimeSeries,
-  getModelBreakdown,
-  getTopProjects,
+  getActivityHeatmap,
   getDailyBudgetLimit,
+  getDashboardSummary,
+  getModelBreakdown,
+  getProjectModelBreakdown,
+  getSessionStats,
+  getTokenComposition,
+  getTopProjects,
+  getUsageTimeSeries,
 } from "@/lib/queries";
 
 export async function GET(request: NextRequest) {
@@ -17,5 +21,9 @@ export async function GET(request: NextRequest) {
     modelBreakdown: getModelBreakdown(rangeDays),
     topProjects: getTopProjects(rangeDays),
     budgetLimit: getDailyBudgetLimit(),
+    tokenComposition: getTokenComposition(rangeDays),
+    projectModels: getProjectModelBreakdown(rangeDays),
+    sessionStats: getSessionStats(rangeDays),
+    activity: getActivityHeatmap(rangeDays),
   });
 }

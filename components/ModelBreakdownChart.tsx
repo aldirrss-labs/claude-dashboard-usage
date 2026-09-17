@@ -1,6 +1,7 @@
 "use client";
 
 import { BarChart } from "@tremor/react";
+import { formatCompact } from "@/lib/format-usage";
 
 interface ModelBreakdownRow {
   model: string;
@@ -40,7 +41,7 @@ export function ModelBreakdownChart({ data }: { data: ModelBreakdownRow[] }) {
       categories={["Tokens"]}
       colors={[SERIES_COLORS[0]]}
       layout="vertical"
-      valueFormatter={(v) => Math.round(v).toLocaleString()}
+      valueFormatter={(v) => formatCompact(v)}
       yAxisWidth={200}
       className="h-60"
       showLegend={false}

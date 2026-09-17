@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AreaChart } from "@tremor/react";
+import { formatCompact } from "@/lib/format-usage";
 
 interface TimeSeriesPoint {
   bucketStart: string;
@@ -94,8 +95,8 @@ export function UsageTimeSeriesChart({ data }: { data: TimeSeriesPoint[] }) {
         showGradient
         showLegend={false}
         curveType="monotone"
-        valueFormatter={(v) => (mode === "percentage" ? `${Math.round(v)}%` : Math.round(v).toLocaleString())}
-        yAxisWidth={56}
+        valueFormatter={(v) => (mode === "percentage" ? `${Math.round(v)}%` : formatCompact(v))}
+        yAxisWidth={64}
         className="h-72"
       />
     </div>

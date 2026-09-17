@@ -6,9 +6,10 @@ import { ModelBreakdownChart } from "@/components/ModelBreakdownChart";
 import { SyncButton } from "@/components/SyncButton";
 import { TopProjectsTable } from "@/components/TopProjectsTable";
 import { Figure, PageHeader, Panel } from "@/components/Panel";
-
-const compact = (n: number) =>
-  n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n.toLocaleString();
+import { TokenComposition, type TokenCompositionRow } from "@/components/TokenComposition";
+import { ProjectModelTable, type ProjectModelRow } from "@/components/ProjectModelTable";
+import { ActivityHeatmap, type ActivityCell } from "@/components/ActivityHeatmap";
+import { formatCompact, formatUsd } from "@/lib/format-usage";
 
 interface SummaryResponse {
   summary: {
@@ -30,6 +31,17 @@ interface SummaryResponse {
   modelBreakdown: Array<{ model: string; totalTokens: number; costUsd: number }>;
   topProjects: Array<{ slug: string; displayName: string; costUsd: number; totalTokens: number; sparkline: number[] }>;
   budgetLimit: { limitUsd: number | null };
+  tokenComposition: TokenCompositionRow[];
+  projectModels: ProjectModelRow[];
+  sessionStats: {
+    sessionCount: number;
+    eventCount: number;
+    avgTokensPerSession: number;
+    avgCostPerSession: number;
+    busiestDay: { date: string; costUsd: number; tokens: number } | null;
+    topSession: { id: string; projectName: string; costUsd: number; tokens: number } | null;
+  };
+  activity: ActivityCell[];
 }
 
 const POLL_INTERVAL_MS = 20_000;
@@ -115,7 +127,7 @@ export default function DashboardPage() {
         <Panel className="md:col-span-7" accent delay={0}>
           <Figure
             label="Total tokens"
-            value={compact(data.summary.totalTokens)}
+            value={formatCompact(data.summary.totalTokens)}
             scale="lg"
             hint={`${data.summary.totalTokens.toLocaleString()} exact`}
           />
@@ -124,39 +136,89 @@ export default function DashboardPage() {
         <Panel className="md:col-span-5 md:mt-8" delay={0.04}>
           <Figure
             label="Estimated cost"
-            value={`$${data.summary.totalCostUsd.toFixed(2)}`}
+            value={formatUsd(data.summary.totalCostUsd)}
             scale="md"
             tone="accent"
-            hint={`≈ $${data.summary.projectedMonthlyCostUsd.toFixed(2)}/mo at this rate`}
+            hint={`≈ ${formatUsd(data.summary.projectedMonthlyCostUsd)}/mo at this rate`}
           />
         </Panel>
 
-        <Panel className="md:col-span-4" delay={0.08}>
+        <Panel className="md:col-span-3" delay={0.08}>
+          <Figure label="Today" value={formatUsd(data.summary.todayCostUsd)} scale="sm" />
+        </Panel>
+
+        <Panel className="md:col-span-3" delay={0.1}>
           <Figure label="Active projects" value={String(data.summary.activeProjectCount)} scale="sm" />
         </Panel>
 
-        <Panel className="md:col-span-4" delay={0.1}>
+        <Panel className="md:col-span-3" delay={0.12}>
           <Figure
-            label="Cache efficiency"
-            value={`${data.summary.cacheEfficiencyPct.toFixed(1)}%`}
+            label="Sessions"
+            value={data.sessionStats.sessionCount.toLocaleString()}
             scale="sm"
-            hint={`Saved $${data.summary.cacheSavingsUsd.toFixed(2)}`}
+            hint={`${data.sessionStats.eventCount.toLocaleString()} API calls`}
           />
         </Panel>
 
-        <Panel className="md:col-span-4" delay={0.12}>
-          <Figure label="Today" value={`$${data.summary.todayCostUsd.toFixed(2)}`} scale="sm" />
+        <Panel className="md:col-span-3" delay={0.14}>
+          <Figure
+            label="Cache savings"
+            value={formatUsd(data.summary.cacheSavingsUsd)}
+            scale="sm"
+            // Two decimals: this sits at 99.99% almost always, and one decimal
+            // rounds it to a flat "100.0%" that looks like a bug.
+            hint={`${data.summary.cacheEfficiencyPct.toFixed(2)}% of input served from cache`}
+          />
         </Panel>
 
-        <Panel label="Usage over time" index={1} className="md:col-span-8" delay={0.16}>
+        <Panel className="md:col-span-4" delay={0.16}>
+          <Figure
+            label="Avg per session"
+            value={formatUsd(data.sessionStats.avgCostPerSession)}
+            scale="sm"
+            hint={`${formatCompact(data.sessionStats.avgTokensPerSession)} tokens`}
+          />
+        </Panel>
+
+        <Panel className="md:col-span-4" delay={0.18}>
+          <Figure
+            label="Busiest day"
+            value={data.sessionStats.busiestDay ? formatUsd(data.sessionStats.busiestDay.costUsd) : "—"}
+            scale="sm"
+            hint={data.sessionStats.busiestDay?.date ?? "no data"}
+          />
+        </Panel>
+
+        <Panel className="md:col-span-4" delay={0.2}>
+          <Figure
+            label="Most expensive session"
+            value={data.sessionStats.topSession ? formatUsd(data.sessionStats.topSession.costUsd) : "—"}
+            scale="sm"
+            hint={data.sessionStats.topSession?.projectName ?? "no data"}
+          />
+        </Panel>
+
+        <Panel label="Usage over time" index={1} className="md:col-span-8" delay={0.22}>
           <UsageTimeSeriesChart data={data.timeSeries} />
         </Panel>
 
-        <Panel label="By model" index={2} className="md:col-span-4" delay={0.2}>
+        <Panel label="Tokens by model" index={2} className="md:col-span-4" delay={0.24}>
           <ModelBreakdownChart data={data.modelBreakdown} />
         </Panel>
 
-        <Panel label="Top projects" index={3} className="md:col-span-12" delay={0.24}>
+        <Panel label="Where the tokens go vs where the money goes" index={3} className="md:col-span-12" delay={0.26}>
+          <TokenComposition rows={data.tokenComposition} />
+        </Panel>
+
+        <Panel label="Models by project" index={4} className="md:col-span-12" padded={false} delay={0.28}>
+          <ProjectModelTable projects={data.projectModels} />
+        </Panel>
+
+        <Panel label="When the work happens" index={5} className="md:col-span-12" delay={0.3}>
+          <ActivityHeatmap cells={data.activity} />
+        </Panel>
+
+        <Panel label="Top projects" index={6} className="md:col-span-12" delay={0.32}>
           <TopProjectsTable projects={data.topProjects} />
         </Panel>
       </div>

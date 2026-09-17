@@ -240,6 +240,299 @@ export function getModelBreakdown(rangeDays: number): ModelBreakdownRow[] {
   }));
 }
 
+export interface TokenCompositionRow {
+  kind: "Input" | "Output" | "Cache read" | "Cache write";
+  tokens: number;
+  costUsd: number;
+}
+
+/**
+ * Split usage into the four token kinds, by volume *and* by cost.
+ *
+ * These two tell very different stories, which is the point of showing both:
+ * cache reads dominate the token count but are billed at a tenth of the input
+ * rate, so the share of spend they account for is far smaller than their share
+ * of tokens. A tokens-only view makes caching look like the whole bill.
+ */
+export function getTokenComposition(rangeDays: number): TokenCompositionRow[] {
+  const db = getDb();
+  const pricing = loadPricing();
+  const rows = db
+    .prepare(
+      `SELECT model,
+              SUM(input_tokens) as input_tokens,
+              SUM(cache_creation_input_tokens) as cache_creation_input_tokens,
+              SUM(cache_read_input_tokens) as cache_read_input_tokens,
+              SUM(output_tokens) as output_tokens
+       FROM usage_events
+       WHERE timestamp >= datetime('now', ?)
+       GROUP BY model`
+    )
+    .all(`-${rangeDays} days`) as Array<{
+    model: string;
+    input_tokens: number;
+    cache_creation_input_tokens: number;
+    cache_read_input_tokens: number;
+    output_tokens: number;
+  }>;
+
+  const totals = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+  const cost = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+
+  // Cost has to be accumulated per model, since each model prices the four
+  // kinds differently — summing tokens first and pricing once would be wrong.
+  for (const row of rows) {
+    const price = priceFor(pricing, row.model);
+    totals.input += row.input_tokens;
+    totals.output += row.output_tokens;
+    totals.cacheRead += row.cache_read_input_tokens;
+    totals.cacheWrite += row.cache_creation_input_tokens;
+
+    cost.input += (row.input_tokens / 1_000_000) * price.input_price;
+    cost.output += (row.output_tokens / 1_000_000) * price.output_price;
+    cost.cacheRead += (row.cache_read_input_tokens / 1_000_000) * price.cache_read_price;
+    cost.cacheWrite += (row.cache_creation_input_tokens / 1_000_000) * price.cache_write_price;
+  }
+
+  return [
+    { kind: "Input", tokens: totals.input, costUsd: cost.input },
+    { kind: "Output", tokens: totals.output, costUsd: cost.output },
+    { kind: "Cache read", tokens: totals.cacheRead, costUsd: cost.cacheRead },
+    { kind: "Cache write", tokens: totals.cacheWrite, costUsd: cost.cacheWrite },
+  ];
+}
+
+export interface ProjectModelCell {
+  model: string;
+  tokens: number;
+  costUsd: number;
+}
+
+export interface ProjectModelRow {
+  slug: string;
+  displayName: string;
+  totalTokens: number;
+  totalCostUsd: number;
+  models: ProjectModelCell[];
+}
+
+/**
+ * Which models each project actually runs on, ranked by spend within the
+ * project. Answers "what is this project costing me, and on which model" in
+ * one place — a per-project total alone hides that one project may be cheap
+ * only because it runs on Sonnet.
+ */
+export function getProjectModelBreakdown(rangeDays: number, limit = 10): ProjectModelRow[] {
+  const db = getDb();
+  const pricing = loadPricing();
+
+  const rows = db
+    .prepare(
+      `SELECT p.slug, p.display_name, e.model,
+              SUM(e.input_tokens) as input_tokens,
+              SUM(e.cache_creation_input_tokens) as cache_creation_input_tokens,
+              SUM(e.cache_read_input_tokens) as cache_read_input_tokens,
+              SUM(e.output_tokens) as output_tokens
+         FROM usage_events e
+         JOIN projects p ON p.id = e.project_id
+        WHERE e.timestamp >= datetime('now', ?)
+        GROUP BY p.id, e.model`
+    )
+    .all(`-${rangeDays} days`) as Array<{
+    slug: string;
+    display_name: string;
+    model: string;
+    input_tokens: number;
+    cache_creation_input_tokens: number;
+    cache_read_input_tokens: number;
+    output_tokens: number;
+  }>;
+
+  const byProject = new Map<string, ProjectModelRow>();
+  for (const row of rows) {
+    const tokens =
+      row.input_tokens + row.cache_creation_input_tokens + row.cache_read_input_tokens + row.output_tokens;
+    // `<synthetic>` rows are bookkeeping entries Claude Code writes with no
+    // usage attached; carrying a 0/0 cell would add a column of dashes to
+    // every project for no information.
+    if (tokens === 0) continue;
+
+    const costUsd = costForRow(pricing, row.model, row);
+    const existing = byProject.get(row.slug);
+    const cell: ProjectModelCell = { model: row.model, tokens, costUsd };
+
+    if (existing) {
+      existing.models.push(cell);
+      existing.totalTokens += tokens;
+      existing.totalCostUsd += costUsd;
+    } else {
+      byProject.set(row.slug, {
+        slug: row.slug,
+        displayName: row.display_name,
+        totalTokens: tokens,
+        totalCostUsd: costUsd,
+        models: [cell],
+      });
+    }
+  }
+
+  return [...byProject.values()]
+    .map((project) => ({
+      ...project,
+      models: project.models.sort((a, b) => b.costUsd - a.costUsd),
+    }))
+    .sort((a, b) => b.totalCostUsd - a.totalCostUsd)
+    .slice(0, limit);
+}
+
+export interface SessionStats {
+  sessionCount: number;
+  eventCount: number;
+  avgTokensPerSession: number;
+  avgCostPerSession: number;
+  busiestDay: { date: string; costUsd: number; tokens: number } | null;
+  topSession: { id: string; projectName: string; costUsd: number; tokens: number } | null;
+}
+
+export function getSessionStats(rangeDays: number): SessionStats {
+  const db = getDb();
+  const pricing = loadPricing();
+  const range = `-${rangeDays} days`;
+
+  const counts = db
+    .prepare(
+      `SELECT COUNT(*) as events, COUNT(DISTINCT session_id) as sessions
+         FROM usage_events WHERE timestamp >= datetime('now', ?)`
+    )
+    .get(range) as { events: number; sessions: number };
+
+  const perSession = db
+    .prepare(
+      `SELECT e.session_id, p.display_name, e.model,
+              SUM(e.input_tokens) as input_tokens,
+              SUM(e.cache_creation_input_tokens) as cache_creation_input_tokens,
+              SUM(e.cache_read_input_tokens) as cache_read_input_tokens,
+              SUM(e.output_tokens) as output_tokens
+         FROM usage_events e
+         LEFT JOIN projects p ON p.id = e.project_id
+        WHERE e.timestamp >= datetime('now', ?)
+        GROUP BY e.session_id, e.model`
+    )
+    .all(range) as Array<{
+    session_id: string;
+    display_name: string | null;
+    model: string;
+    input_tokens: number;
+    cache_creation_input_tokens: number;
+    cache_read_input_tokens: number;
+    output_tokens: number;
+  }>;
+
+  // Grouped by (session, model) above so cost is priced per model, then folded
+  // back to one entry per session here.
+  const sessions = new Map<string, { project: string; tokens: number; cost: number }>();
+  for (const row of perSession) {
+    const tokens =
+      row.input_tokens + row.cache_creation_input_tokens + row.cache_read_input_tokens + row.output_tokens;
+    const cost = costForRow(pricing, row.model, row);
+    const existing = sessions.get(row.session_id);
+    if (existing) {
+      existing.tokens += tokens;
+      existing.cost += cost;
+    } else {
+      sessions.set(row.session_id, { project: row.display_name ?? "—", tokens, cost });
+    }
+  }
+
+  let totalTokens = 0;
+  let totalCost = 0;
+  let topSession: SessionStats["topSession"] = null;
+  for (const [id, s] of sessions) {
+    totalTokens += s.tokens;
+    totalCost += s.cost;
+    if (!topSession || s.cost > topSession.costUsd) {
+      topSession = { id, projectName: s.project, costUsd: s.cost, tokens: s.tokens };
+    }
+  }
+
+  const perDay = db
+    .prepare(
+      `SELECT substr(timestamp, 1, 10) as day, model,
+              SUM(input_tokens) as input_tokens,
+              SUM(cache_creation_input_tokens) as cache_creation_input_tokens,
+              SUM(cache_read_input_tokens) as cache_read_input_tokens,
+              SUM(output_tokens) as output_tokens
+         FROM usage_events WHERE timestamp >= datetime('now', ?)
+        GROUP BY day, model`
+    )
+    .all(range) as Array<{
+    day: string;
+    model: string;
+    input_tokens: number;
+    cache_creation_input_tokens: number;
+    cache_read_input_tokens: number;
+    output_tokens: number;
+  }>;
+
+  const days = new Map<string, { cost: number; tokens: number }>();
+  for (const row of perDay) {
+    const entry = days.get(row.day) ?? { cost: 0, tokens: 0 };
+    entry.cost += costForRow(pricing, row.model, row);
+    entry.tokens +=
+      row.input_tokens + row.cache_creation_input_tokens + row.cache_read_input_tokens + row.output_tokens;
+    days.set(row.day, entry);
+  }
+
+  let busiestDay: SessionStats["busiestDay"] = null;
+  for (const [date, entry] of days) {
+    if (!busiestDay || entry.cost > busiestDay.costUsd) {
+      busiestDay = { date, costUsd: entry.cost, tokens: entry.tokens };
+    }
+  }
+
+  const sessionCount = sessions.size;
+  return {
+    sessionCount,
+    eventCount: counts.events,
+    avgTokensPerSession: sessionCount ? totalTokens / sessionCount : 0,
+    avgCostPerSession: sessionCount ? totalCost / sessionCount : 0,
+    busiestDay,
+    topSession,
+  };
+}
+
+export interface ActivityCell {
+  /** 0 = Sunday, matching SQLite's strftime('%w'). */
+  dayOfWeek: number;
+  hour: number;
+  events: number;
+  tokens: number;
+}
+
+/**
+ * When the work actually happens, as a day-of-week × hour grid.
+ *
+ * Timestamps are stored UTC, and `'localtime'` converts them to the server's
+ * zone so the grid matches the hours the user recognises rather than being
+ * shifted by their offset.
+ */
+export function getActivityHeatmap(rangeDays: number): ActivityCell[] {
+  const db = getDb();
+  const rows = db
+    .prepare(
+      `SELECT CAST(strftime('%w', timestamp, 'localtime') AS INTEGER) as dow,
+              CAST(strftime('%H', timestamp, 'localtime') AS INTEGER) as hour,
+              COUNT(*) as events,
+              SUM(input_tokens + cache_creation_input_tokens + cache_read_input_tokens + output_tokens) as tokens
+         FROM usage_events
+        WHERE timestamp >= datetime('now', ?)
+        GROUP BY dow, hour`
+    )
+    .all(`-${rangeDays} days`) as Array<{ dow: number; hour: number; events: number; tokens: number }>;
+
+  return rows.map((r) => ({ dayOfWeek: r.dow, hour: r.hour, events: r.events, tokens: r.tokens ?? 0 }));
+}
+
 export function listProjects(): ProjectListRow[] {
   const db = getDb();
   const pricing = loadPricing();
