@@ -77,6 +77,20 @@ CREATE TABLE IF NOT EXISTS email_log (
   sent_at TEXT NOT NULL,
   status TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS claude_accounts (
+  id INTEGER PRIMARY KEY,
+  label TEXT NOT NULL,
+  email TEXT,
+  organization_uuid TEXT NOT NULL,
+  account_uuid TEXT NOT NULL,
+  credentials_snapshot TEXT NOT NULL,
+  oauth_account_snapshot TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_claude_accounts_identity
+  ON claude_accounts(organization_uuid, account_uuid);
 `;
 
 function migrateProjectsTable(db: Database.Database): void {
