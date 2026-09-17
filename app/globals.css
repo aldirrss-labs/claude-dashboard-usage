@@ -16,6 +16,21 @@
   defined below, the utilities themselves would never be generated.
 */
 @source inline("{bg,text,border,ring,divide}-tremor-{brand,brand-default,brand-emphasis,brand-inverted,brand-muted,brand-subtle,brand-faint,background-default,background-defualt,background-muted,background-subtle,background-emphasis,border-default,content,content-default,content-subtle,content-emphasis,content-strong,content-inverted}");
+/*
+  Axis labels and gridlines are SVG, so Tremor paints them with `fill-*` and
+  `stroke-*` — not the `text-*`/`border-*` utilities listed above. Leaving these
+  out meant the utilities were never generated and the SVG fell back to its
+  default fill, black: invisible on a dark ground. It looked correct under the
+  old light theme purely by accident, black text on a white card.
+  This list is exactly what `grep -roE '(fill|stroke)-tremor-[a-z0-9-]*'` finds
+  in @tremor/react's dist; re-check it when Tremor is upgraded.
+*/
+@source inline("{fill,stroke}-tremor-{brand-default,brand-muted,content-default,content-emphasis,background-default,border-default}");
+/* Dividers, focus rings/outlines, the checkbox accent, and the per-side radius
+   variants. Found the same way; audited so that every `tremor-` class the
+   library emits resolves to a token rather than silently doing nothing. */
+@source inline("{divide,ring,outline,accent}-tremor-{brand,brand-default,border-default,ring-default}");
+@source inline("rounded-{b,l,r,t}-tremor-{small,default}");
 @source inline("rounded-tremor-{small,default,full}");
 @source inline("shadow-tremor-{card,dropdown,input}");
 @source inline("text-tremor-{label,default}");
@@ -119,6 +134,9 @@
   --color-tremor-background-emphasis: var(--text-secondary);
 
   --color-tremor-border-default: var(--line-hairline);
+  /* Referenced by Tremor's focus rings; undefined here meant the utility was
+     dropped and focused controls showed no ring at all. */
+  --color-tremor-ring-default: var(--accent-500);
 
   --color-tremor-content: var(--text-secondary);
   --color-tremor-content-default: var(--text-secondary);
