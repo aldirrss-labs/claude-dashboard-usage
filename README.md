@@ -28,7 +28,15 @@ npm run dev
 Open [http://localhost:3000](http://localhost:3000). The app starts ingesting usage data
 immediately — no setup step required — by scanning `~/.claude/projects/`.
 
-For running this as an always-on background service (systemd), see [`deploy/README.md`](deploy/README.md).
+To run it as an always-on background service instead, build it and install the systemd user service —
+no root required, and it works from wherever you cloned the repo:
+
+```bash
+npm run build
+deploy/install.sh
+```
+
+See [`deploy/README.md`](deploy/README.md) for options, redeployment and uninstalling.
 
 ## How it works
 
@@ -73,6 +81,6 @@ app/                  Routes: Dashboard (/), Projects (/projects), Project detai
 components/           UI components (charts, tables, cards, sidebar)
 lib/                  Ingestion, scheduling, SQLite schema/queries, pricing, mailer
 scripts/              One-off maintenance scripts (duplicate-project migration)
-deploy/               systemd unit + deployment instructions
+deploy/               systemd unit template + install script
 docs/plans/           Design docs written while building this app
 ```

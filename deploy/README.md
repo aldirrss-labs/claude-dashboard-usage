@@ -1,75 +1,85 @@
 # Deploying as a systemd user service
 
-1. Install dependencies and build the app:
+No root or sudo required — this runs as a **user** service under your own account.
 
-   ```bash
-   cd ~/Project/PRIBADI/web/claude-dashboard-usage
-   npm install
-   npm run build
-   ```
+## Install
 
-   On npm 11+, `npm install` defers package install scripts. `better-sqlite3`
-   ships prebuilt binaries for common platforms, so it normally works as-is; if
-   the service later fails to load the native module, approve its build script
-   with `npm install-scripts approve better-sqlite3`.
+```bash
+npm install
+npm run build
+deploy/install.sh
+```
 
-   This produces `.next/standalone/server.js`. Static assets and public files need to
-   be copied manually since standalone mode doesn't include them by default:
+That is the whole thing. The dashboard is then at `http://127.0.0.1:4317`, running at all times and
+independent of any terminal session.
 
-   ```bash
-   cp -r .next/static .next/standalone/.next/static
-   cp -r public .next/standalone/public 2>/dev/null || true
-   ```
+`install.sh` discovers everything machine-specific rather than assuming it:
 
-2. Install the unit as a **user** service (no root/sudo required). If Node is
-   installed via nvm (as opposed to a system package), systemd user services don't
-   source your shell profile, so `ExecStart` needs an absolute path to the node
-   binary rather than relying on `PATH`. Check yours with `which node` and update
-   `ExecStart` in `deploy/claude-dashboard.service` if it differs from the
-   `%h/.nvm/versions/node/v24.20.0/bin/node` default. `WorkingDirectory` uses
-   `%h` (your home directory) and assumes the repo lives at
-   `~/Project/PRIBADI/web/claude-dashboard-usage` — adjust it if yours differs:
+- **Where the repo is** — taken from the script's own location, so the repo can be cloned anywhere.
+- **Which node to use** — resolved from `PATH` and dereferenced through any nvm shim. systemd user
+  services do not source your shell profile, so the unit needs an absolute path to the real
+  interpreter.
+- **Whether the build exists** — it refuses to install a unit that would start and immediately fail,
+  and separately checks that `postbuild` copied the static assets in (without them the page loads
+  with every stylesheet and script 404ing, which is a confusing way to find out).
 
-   ```bash
-   mkdir -p ~/.config/systemd/user
-   cp deploy/claude-dashboard.service ~/.config/systemd/user/
-   systemctl --user daemon-reload
-   systemctl --user enable --now claude-dashboard.service
-   ```
+The unit itself is generated from [`claude-dashboard.service.in`](claude-dashboard.service.in) into
+`~/.config/systemd/user/claude-dashboard.service`. The template is committed; the filled-in unit is
+not, because its two most important values differ on every machine.
 
-3. Enable lingering so the service keeps running after logout:
+### Options
 
-   ```bash
-   loginctl enable-linger $USER
-   ```
+```bash
+PORT=8080 deploy/install.sh          # different port
+HOST=0.0.0.0 deploy/install.sh       # reachable from the network — read the warning below first
+```
 
-4. Check status and logs:
+The service binds to `127.0.0.1` by default. **Think before changing that.** The dashboard has no
+authentication of any kind, and once you save accounts, its database holds live OAuth tokens for
+every one of them — anyone who can reach the port can read them and switch your active login.
 
-   ```bash
-   systemctl --user status claude-dashboard.service
-   journalctl --user -u claude-dashboard.service -f
-   ```
+## Redeploying after code changes
 
-5. The dashboard is now reachable at `http://localhost:4317` at all times, independent
-   of any terminal session. The unit sets `HOSTNAME=127.0.0.1` so it listens on
-   loopback only — remove that line if you want it reachable from other machines
-   on your network.
+```bash
+npm run build
+systemctl --user restart claude-dashboard.service
+```
 
-6. To redeploy after code changes: repeat step 1, then:
+Re-run `deploy/install.sh` as well if you moved the repo, changed node version, or want a different
+port — it rewrites the unit and restarts in one step.
 
-   ```bash
-   systemctl --user restart claude-dashboard.service
-   ```
+The SQLite database at `~/.claude-dashboard/usage.db` is untouched by rebuilds, so historical usage
+survives every redeploy.
 
-   The SQLite database at `~/.claude-dashboard/usage.db` is untouched by rebuilds —
-   historical usage data survives every redeploy.
+## Checking on it
+
+```bash
+systemctl --user status claude-dashboard.service
+journalctl --user -u claude-dashboard.service -f
+```
+
+## Uninstalling
+
+```bash
+systemctl --user disable --now claude-dashboard.service
+rm ~/.config/systemd/user/claude-dashboard.service
+systemctl --user daemon-reload
+loginctl disable-linger "$USER"   # optional
+```
+
+This leaves `~/.claude-dashboard/` in place. Delete that directory too if you want the usage history
+and saved account credentials gone.
 
 ## Troubleshooting
 
-- **Port already in use**: change `Environment=PORT=4317` in the unit file to a free
-  port, then `systemctl --user daemon-reload && systemctl --user restart claude-dashboard.service`.
-- **Service won't start after a reboot**: confirm lingering is enabled with
-  `loginctl show-user $USER | grep Linger` — it should read `Linger=yes`.
-- **Stale data / ingestion not running**: check `journalctl --user -u claude-dashboard.service`
-  for `[ingest] cycle failed` log lines. The scheduler runs every 5 minutes and retries
-  automatically; a single failed cycle does not stop the service.
+- **Port already in use**: reinstall on another port with `PORT=<free port> deploy/install.sh`.
+- **Service won't start after a reboot**: confirm lingering is on with
+  `loginctl show-user "$USER" | grep Linger` — it should read `Linger=yes`. `install.sh` enables it,
+  but says so if it could not.
+- **Page loads unstyled, console full of 404s**: the standalone build is missing its static assets.
+  Run `npm run build` again — the `postbuild` script copies them — then restart the service.
+- **Stale data / ingestion not running**: check
+  `journalctl --user -u claude-dashboard.service` for `[ingest] cycle failed`. The scheduler runs
+  every 5 minutes and retries on its own; one failed cycle does not stop the service.
+- **`node not found on PATH`**: if node comes from nvm, run the installer from an interactive shell
+  where `node --version` works, since that is where the path is resolved from.
