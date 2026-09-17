@@ -73,6 +73,23 @@ export function formatCents(cents: number, currency = "USD"): string {
   });
 }
 
+/**
+ * A stable colour per model family, so the same model reads the same way in
+ * every panel rather than shifting with its rank in whichever list it appears.
+ */
+export function modelHue(model: string): string {
+  if (model.includes("opus")) return "#a3e635";
+  if (model.includes("sonnet")) return "#22d3ee";
+  if (model.includes("haiku")) return "#fb923c";
+  if (model.includes("fable") || model.includes("mythos")) return "#a78bfa";
+  return "var(--text-muted)";
+}
+
+/** Drop the prefix every Claude model shares, which carries no information. */
+export function shortModel(model: string): string {
+  return model.replace(/^claude-/, "");
+}
+
 /** Green under pressure, amber approaching the cap, red at it. */
 export function utilizationColor(percent: number): string {
   if (percent >= 90) return "var(--danger-500, #dc2626)";

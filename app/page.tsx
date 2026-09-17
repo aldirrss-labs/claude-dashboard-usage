@@ -202,7 +202,7 @@ export default function DashboardPage() {
           <UsageTimeSeriesChart data={data.timeSeries} />
         </Panel>
 
-        <Panel label="Tokens by model" index={2} className="md:col-span-4" delay={0.24}>
+        <Panel label="By model" index={2} className="md:col-span-4" delay={0.24}>
           <ModelBreakdownChart data={data.modelBreakdown} />
         </Panel>
 

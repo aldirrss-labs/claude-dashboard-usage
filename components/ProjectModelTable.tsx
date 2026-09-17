@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { formatCompact, formatUsd } from "@/lib/format-usage";
+import { formatCompact, formatUsd, modelHue, shortModel } from "@/lib/format-usage";
 
 export interface ProjectModelCell {
   model: string;
@@ -16,21 +16,6 @@ export interface ProjectModelRow {
   totalTokens: number;
   totalCostUsd: number;
   models: ProjectModelCell[];
-}
-
-// Stable colour per model family, so the same model reads the same way in every
-// row rather than shifting with its rank within a project.
-function modelHue(model: string): string {
-  if (model.includes("opus")) return "#a3e635";
-  if (model.includes("sonnet")) return "#22d3ee";
-  if (model.includes("haiku")) return "#fb923c";
-  if (model.includes("fable") || model.includes("mythos")) return "#a78bfa";
-  return "var(--text-muted)";
-}
-
-/** Strip the shared prefix — every row would otherwise start with "claude-". */
-function shortModel(model: string): string {
-  return model.replace(/^claude-/, "");
 }
 
 export function ProjectModelTable({ projects }: { projects: ProjectModelRow[] }) {
