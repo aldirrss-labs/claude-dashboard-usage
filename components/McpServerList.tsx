@@ -41,7 +41,15 @@ async function readError(res: Response): Promise<{ error: string; fallbackComman
   }
 }
 
-export function McpServerList({ servers, onChanged }: { servers: McpServer[]; onChanged: () => void }) {
+export function McpServerList({
+  servers,
+  onChanged,
+  onInspect,
+}: {
+  servers: McpServer[];
+  onChanged: () => void;
+  onInspect: (name: string) => void;
+}) {
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ name: string; text: string; tone: "ok" | "error" } | null>(null);
   const [login, setLogin] = useState<{ name: string; authUrl: string; redirect: string } | null>(null);
@@ -181,6 +189,13 @@ export function McpServerList({ servers, onChanged }: { servers: McpServer[]; on
                 </div>
 
                 <div className="flex shrink-0 flex-wrap items-center gap-3 text-xs">
+                  <button
+                    onClick={() => onInspect(server.name)}
+                    className="hover:underline"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    Details
+                  </button>
                   {server.status !== "connected" && (
                     <button
                       onClick={() => startLogin(server.name)}

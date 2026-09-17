@@ -5,10 +5,11 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "postbuild": "cp -r .next/static .next/standalone/.next/static && cp -r public .next/standalone/public",
+    "postbuild": "cp -r .next/static .next/standalone/.next/static && cp -r public .next/standalone/public && mkdir -p .next/standalone/data && cp data/mcp-registry.json .next/standalone/data/",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test lib/__tests__/*.test.ts"
+    "test": "tsx --test lib/__tests__/*.test.ts",
+    "sync:mcp": "tsx scripts/sync-mcp-registry.ts"
   },
   "dependencies": {
     "@tremor/react": "^4.0.0-beta-tremor-v4.4",

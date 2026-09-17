@@ -146,11 +146,14 @@ function scopesFromConfig(): Map<string, McpScope> {
   return scopes;
 }
 
-async function runClaudeMcp(args: string[]): Promise<string> {
+async function runClaudeMcp(args: string[], cwd?: string): Promise<string> {
   try {
     const { stdout, stderr } = await execFileAsync(resolveClaudeBin(), ["mcp", ...args], {
       timeout: CLI_TIMEOUT_MS,
       maxBuffer: 4 * 1024 * 1024,
+      // `local` and `project` scope are resolved against the working directory,
+      // so a scoped write has to run inside the project it is meant for.
+      ...(cwd ? { cwd } : {}),
     });
     return `${stdout}${stderr}`;
   } catch (err) {
@@ -225,6 +228,105 @@ export async function removeMcpServer(name: string, scope?: McpScope): Promise<s
   const args = ["remove", name];
   if (scope === "local" || scope === "user" || scope === "project") args.push("-s", scope);
   const output = await runClaudeMcp(args);
+  cache = null;
+  return output.trim();
+}
+
+export class InvalidServerError extends Error {}
+
+/** Transports this app will install. stdio is excluded on purpose — see below. */
+const URL_TRANSPORTS = new Set(["http", "sse"]);
+
+/**
+ * Map a registry remote type onto a `claude mcp add --transport` value.
+ * The registry says "streamable-http"; the CLI calls that "http".
+ */
+export function normalizeTransport(type: string): string | null {
+  const t = type.toLowerCase();
+  if (t === "streamable-http" || t === "http" || t === "streamable_http") return "http";
+  if (t === "sse") return "sse";
+  return null;
+}
+
+/**
+ * Add an MCP server.
+ *
+ * Only URL transports are accepted, and that is a security boundary rather
+ * than a missing feature. A stdio server is an arbitrary shell command that
+ * Claude Code will later execute; accepting one over HTTP would turn this
+ * unauthenticated dashboard into a remote code execution endpoint. Adding a URL
+ * server only records an address.
+ *
+ * Scope defaults to `local` — the narrowest — so nothing added from a web page
+ * silently applies to every project on the machine.
+ */
+export async function addMcpServer(input: {
+  name: string;
+  url: string;
+  transport: string;
+  scope?: "local" | "user" | "project";
+  /** Required for local/project scope — see the cwd note below. */
+  projectDir?: string;
+}): Promise<string> {
+  const name = input.name.trim();
+  // Conservative: a name is an argv element, but it also ends up in config
+  // files and URLs, and anything exotic here is far more likely to be a mistake
+  // than a real server name.
+  if (!/^[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}$/.test(name)) {
+    throw new InvalidServerError(
+      "Name must be 1–64 characters: letters, digits, spaces, dots, dashes or underscores, starting with a letter or digit."
+    );
+  }
+
+  const transport = normalizeTransport(input.transport);
+  if (!transport || !URL_TRANSPORTS.has(transport)) {
+    throw new InvalidServerError(
+      `Only http and sse servers can be added here. "${input.transport}" runs a local command, which this dashboard will not do — add it with the CLI if you trust it.`
+    );
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(input.url.trim());
+  } catch {
+    throw new InvalidServerError("That is not a valid URL.");
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new InvalidServerError("The URL must be http or https.");
+  }
+
+  const existing = await listMcpServers();
+  if (existing.some((s) => s.name === name)) {
+    throw new InvalidServerError(`A server named "${name}" already exists.`);
+  }
+
+  const scope = input.scope ?? "user";
+
+  /*
+   * `local` and `project` scope are resolved against the CLI's working
+   * directory. This service runs from .next/standalone, so without an explicit
+   * directory a "local" install silently lands against the build folder —
+   * config that no real project will ever read. Demand the directory instead of
+   * writing somewhere useless.
+   */
+  let cwd: string | undefined;
+  if (scope === "local" || scope === "project") {
+    const dir = input.projectDir?.trim();
+    if (!dir) {
+      throw new InvalidServerError(
+        `${scope} scope applies to one project, so it needs a project directory. Pick a project, or use user scope to apply it everywhere.`
+      );
+    }
+    if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
+      throw new InvalidServerError(`No such directory: ${dir}`);
+    }
+    cwd = dir;
+  }
+
+  const output = await runClaudeMcp(
+    ["add", "--transport", transport, "--scope", scope, name, parsed.toString()],
+    cwd
+  );
   cache = null;
   return output.trim();
 }
