@@ -329,9 +329,19 @@ input[type="checkbox"] {
   background: transparent;
 }
 
+/*
+  Selection: a dark lime-tinted block, not the full-saturation accent.
+  Highlighting with the raw accent turned any selected run into a bright slab
+  that reads as something covering the text rather than selecting it — most
+  visibly on chart axis labels.
+  Both background and colour are set, and the background is opaque rather than
+  a tint: a translucent highlight blends with whatever sits behind it, which
+  dropped muted text (the axis labels) to 2.7:1. Pinned this way every selection
+  is the same 7.8:1 regardless of what was selected or what it sat on.
+*/
 ::selection {
-  background: var(--accent-500);
-  color: #0a0a0b;
+  background: #3c4924;
+  color: #e6e6e9;
 }
 
 /* Respect a user who has asked for less motion. */
