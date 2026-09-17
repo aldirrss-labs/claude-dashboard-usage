@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { PageHeader } from "@/components/Panel";
 
 interface PricingRow {
   model: string;
@@ -133,32 +134,26 @@ export default function SettingsPage() {
   }
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
-            Settings
-          </h1>
+    <main className="mx-auto max-w-4xl space-y-4 p-8">
+      <PageHeader
+        kicker={
           <a
             href={CLAUDE_PRICING_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs hover:underline"
+            className="hover:underline"
             style={{ color: "var(--accent-500)" }}
           >
-            View Claude Pricing ↗
+            View Claude pricing ↗
           </a>
-        </div>
-        <motion.button
-          whileTap={{ scale: 0.97 }}
-          onClick={handleSync}
-          disabled={syncing}
-          className="rounded px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-          style={{ background: "var(--accent-500)" }}
-        >
-          {syncing ? "Syncing…" : "Sync Pricing"}
-        </motion.button>
-      </div>
+        }
+        title="Settings"
+        action={
+          <motion.button whileTap={{ scale: 0.97 }} onClick={handleSync} disabled={syncing} className="btn-accent">
+            {syncing ? "Syncing…" : "Sync Pricing"}
+          </motion.button>
+        }
+      />
 
       {syncMessage && (
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>

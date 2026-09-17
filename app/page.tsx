@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import { SummaryCard } from "@/components/SummaryCard";
 import { UsageTimeSeriesChart } from "@/components/UsageTimeSeriesChart";
 import { ModelBreakdownChart } from "@/components/ModelBreakdownChart";
 import { SyncButton } from "@/components/SyncButton";
 import { TopProjectsTable } from "@/components/TopProjectsTable";
+import { Figure, PageHeader, Panel } from "@/components/Panel";
+
+const compact = (n: number) =>
+  n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n.toLocaleString();
 
 interface SummaryResponse {
   summary: {
@@ -58,94 +60,106 @@ export default function DashboardPage() {
   }
 
   if (!data) {
-    return <div className="p-8 text-sm" style={{ color: "var(--text-muted)" }}>Loading dashboard…</div>;
+    return <div className="label-mono p-8">Loading dashboard…</div>;
   }
 
-  return (
-    <main className="mx-auto max-w-6xl space-y-6 p-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
-          Dashboard
-        </h1>
-        <div className="flex items-center gap-3">
-          <SyncButton onSynced={refetch} />
-          <select
-            className="rounded border px-2 py-1 text-sm"
-            style={{ borderColor: "var(--line-hairline)", background: "var(--surface-1)", color: "var(--text-primary)" }}
-            value={rangeDays}
-            onChange={(e) => setRangeDays(Number(e.target.value))}
-          >
-            <option value={7}>Last 7 days</option>
-            <option value={30}>Last 30 days</option>
-            <option value={90}>Last 90 days</option>
-          </select>
-        </div>
-      </div>
+  const overBudget =
+    data.budgetLimit.limitUsd !== null && data.summary.todayCostUsd > data.budgetLimit.limitUsd;
 
-      {data.budgetLimit.limitUsd !== null && data.summary.todayCostUsd > data.budgetLimit.limitUsd && (
+  return (
+    <main className="mx-auto max-w-6xl p-8">
+      <PageHeader
+        kicker="Claude Code · this machine"
+        title="Dashboard"
+        action={
+          <>
+            <SyncButton onSynced={refetch} />
+            <select
+              className="label-mono border px-2 py-1.5"
+              style={{ borderColor: "var(--line-hairline)", background: "var(--surface-1)", color: "var(--text-primary)" }}
+              value={rangeDays}
+              onChange={(e) => setRangeDays(Number(e.target.value))}
+            >
+              <option value={7}>LAST 7 DAYS</option>
+              <option value={30}>LAST 30 DAYS</option>
+              <option value={90}>LAST 90 DAYS</option>
+            </select>
+          </>
+        }
+      />
+
+      {overBudget && (
         <div
-          className="rounded-lg px-4 py-2 text-sm font-medium"
-          style={{ background: "rgba(235, 104, 52, 0.12)", color: "#eb6834", border: "1px solid rgba(235, 104, 52, 0.3)" }}
+          className="mb-6 px-4 py-2.5 text-sm"
+          style={{
+            background: "rgba(255, 107, 107, 0.1)",
+            color: "var(--danger-500)",
+            borderLeft: "3px solid var(--danger-500)",
+          }}
         >
-          ⚠ Today&apos;s cost (${data.summary.todayCostUsd.toFixed(2)}) exceeds your daily budget (${data.budgetLimit.limitUsd.toFixed(2)})
+          <span className="label-mono mr-2" style={{ color: "var(--danger-500)" }}>
+            Over budget
+          </span>
+          Today is ${data.summary.todayCostUsd.toFixed(2)} against a ${data.budgetLimit.limitUsd!.toFixed(2)} limit.
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <SummaryCard label="Total tokens" value={data.summary.totalTokens} />
-        <SummaryCard
-          label="Estimated cost"
-          value={data.summary.totalCostUsd}
-          formatter={(n) => `$${n.toFixed(2)}`}
-          hint={`≈ $${data.summary.projectedMonthlyCostUsd.toFixed(2)}/mo if this trend continues`}
-        />
-        <SummaryCard label="Active projects" value={data.summary.activeProjectCount} />
-        <SummaryCard
-          label="Cache efficiency"
-          value={data.summary.cacheEfficiencyPct}
-          formatter={(n) => `${n.toFixed(1)}%`}
-          hint={`Saved $${data.summary.cacheSavingsUsd.toFixed(2)} from caching`}
-        />
+      {/*
+        Deliberately uneven 12-column grid: the two figures that matter get
+        unequal weight (7/5), the small stats break 4/4/4 below them, and the
+        charts split 8/4. Nothing is centred and no two rows share a rhythm —
+        but every span lands on the same grid, which is what keeps the
+        disorder from reading as breakage.
+      */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
+        <Panel className="md:col-span-7" accent delay={0}>
+          <Figure
+            label="Total tokens"
+            value={compact(data.summary.totalTokens)}
+            scale="lg"
+            hint={`${data.summary.totalTokens.toLocaleString()} exact`}
+          />
+        </Panel>
+
+        <Panel className="md:col-span-5 md:mt-8" delay={0.04}>
+          <Figure
+            label="Estimated cost"
+            value={`$${data.summary.totalCostUsd.toFixed(2)}`}
+            scale="md"
+            tone="accent"
+            hint={`≈ $${data.summary.projectedMonthlyCostUsd.toFixed(2)}/mo at this rate`}
+          />
+        </Panel>
+
+        <Panel className="md:col-span-4" delay={0.08}>
+          <Figure label="Active projects" value={String(data.summary.activeProjectCount)} scale="sm" />
+        </Panel>
+
+        <Panel className="md:col-span-4" delay={0.1}>
+          <Figure
+            label="Cache efficiency"
+            value={`${data.summary.cacheEfficiencyPct.toFixed(1)}%`}
+            scale="sm"
+            hint={`Saved $${data.summary.cacheSavingsUsd.toFixed(2)}`}
+          />
+        </Panel>
+
+        <Panel className="md:col-span-4" delay={0.12}>
+          <Figure label="Today" value={`$${data.summary.todayCostUsd.toFixed(2)}`} scale="sm" />
+        </Panel>
+
+        <Panel label="Usage over time" index={1} className="md:col-span-8" delay={0.16}>
+          <UsageTimeSeriesChart data={data.timeSeries} />
+        </Panel>
+
+        <Panel label="By model" index={2} className="md:col-span-4" delay={0.2}>
+          <ModelBreakdownChart data={data.modelBreakdown} />
+        </Panel>
+
+        <Panel label="Top projects" index={3} className="md:col-span-12" delay={0.24}>
+          <TopProjectsTable projects={data.topProjects} />
+        </Panel>
       </div>
-
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.3, delay: 0.1 }}
-        className="rounded-xl p-5"
-        style={{ background: "var(--surface-1)", border: "1px solid var(--line-hairline)" }}
-      >
-        <h2 className="mb-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
-          Usage over time
-        </h2>
-        <UsageTimeSeriesChart data={data.timeSeries} />
-      </motion.div>
-
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.3, delay: 0.15 }}
-        className="rounded-xl p-5"
-        style={{ background: "var(--surface-1)", border: "1px solid var(--line-hairline)" }}
-      >
-        <h2 className="mb-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
-          Usage by model
-        </h2>
-        <ModelBreakdownChart data={data.modelBreakdown} />
-      </motion.div>
-
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.3, delay: 0.2 }}
-        className="rounded-xl p-5"
-        style={{ background: "var(--surface-1)", border: "1px solid var(--line-hairline)" }}
-      >
-        <h2 className="mb-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
-          Top projects
-        </h2>
-        <TopProjectsTable projects={data.topProjects} />
-      </motion.div>
     </main>
   );
 }

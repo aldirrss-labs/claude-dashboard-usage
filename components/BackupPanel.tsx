@@ -115,8 +115,7 @@ export function BackupPanel({ onImported }: { onImported: () => void }) {
           whileTap={{ scale: 0.97 }}
           onClick={handleExport}
           disabled={busy || exportPassphrase.length < 8}
-          className="rounded px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-          style={{ background: "var(--accent-500)" }}
+          className="btn-accent"
         >
           Export accounts
         </motion.button>

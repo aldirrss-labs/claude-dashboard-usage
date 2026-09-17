@@ -6,8 +6,8 @@
   can never discover them. Explicitly source the shades Tremor charts
   use, for every color this app passes to a Tremor `colors` prop.
 */
-@source inline("{fill,stroke,bg,text,border}-{blue,orange,emerald,amber,gray}-{50,100,200,300,400,500,600,700,900}");
-@source inline("{fill,stroke,bg,text,border}-{blue,orange,emerald,amber,gray}-{50,100,200,300,400,500,600,700,900}/{10,20,30}");
+@source inline("{fill,stroke,bg,text,border}-{blue,orange,emerald,amber,gray,lime,cyan,violet}-{50,100,200,300,400,500,600,700,900}");
+@source inline("{fill,stroke,bg,text,border}-{blue,orange,emerald,amber,gray,lime,cyan,violet}-{50,100,200,300,400,500,600,700,900}/{10,20,30}");
 
 /*
   Tremor's own `tremor-*` utility classes (background, border, content,
@@ -20,31 +20,61 @@
 @source inline("shadow-tremor-{card,dropdown,input}");
 @source inline("text-tremor-{label,default}");
 
+/*
+  ─────────────────────────────────────────────────────────────────────
+  TERMINAL BRUTALIST — dark, structural, deliberately unsoftened.
+
+  The governing rule of this theme is: the frame is loud, the data is
+  quiet. Texture, rules and oversized type live in the chrome; numbers
+  and labels sit on flat surfaces and stay perfectly aligned.
+
+  Every foreground/surface pair below was checked against WCAG 2.1:
+  primary text clears 7:1 (AAA) on all three surfaces, and every other
+  foreground clears 4.5:1 — including muted text on the lightest inset,
+  which is the worst case at 5.24:1.
+  ─────────────────────────────────────────────────────────────────────
+*/
 :root {
-  --background: #f7f8fa;
-  --foreground: #0b0b0b;
+  /* Near-black, not #000: pure black against light text causes halation,
+     which makes small type shimmer and is tiring to read for long. */
+  --background: #0a0a0b;
+  --foreground: #e6e6e9;
 
-  /* Insightix-inspired light theme tokens */
-  --sidebar-bg: #ffffff;
-  --sidebar-border: #e9eaee;
-  --sidebar-active-bg: #eef4ff;
-  --sidebar-text: #6b7280;
-  --sidebar-text-active: #2a78d6;
+  /* Elevation is carried by lightness, not by shadow — brutalism has no
+     soft drop shadows to lean on. */
+  --surface-0: #0a0a0b;
+  --surface-1: #111113;
+  --surface-2: #17171a;
 
-  --surface-0: #f7f8fa;
-  --surface-1: #ffffff;
+  --sidebar-bg: #0a0a0b;
+  --sidebar-border: #2c2c33;
+  --sidebar-active-bg: #17171a;
+  --sidebar-text: #8a8a96;
+  --sidebar-text-active: #b5e853;
 
-  --accent-500: #2a78d6;
-  --accent-600: #1c5cab;
-  --accent-100: #eef4ff;
+  /* Phosphor lime: the single accent. Used for the active state, key
+     figures and one hairline per panel — never for body copy. */
+  --accent-500: #b5e853;
+  --accent-600: #c9f472;
+  --accent-100: rgba(181, 232, 83, 0.12);
 
-  --line-hairline: #e9eaee;
-  --text-primary: #0f172a;
-  --text-secondary: #52545c;
-  --text-muted: #8a8d98;
+  --line-hairline: #2c2c33;
+  --line-strong: #41414b;
 
-  --trend-up: #eb6834;
-  --trend-down: #1baf7a;
+  --text-primary: #e6e6e9;
+  --text-secondary: #a8a8b3;
+  --text-muted: #8a8a96;
+
+  --danger-500: #ff6b6b;
+  --warning-500: #ffb454;
+
+  /* Cost going up is the bad direction here, hence warm for up. */
+  --trend-up: #ff8a65;
+  --trend-down: #5ce08f;
+
+  /* One spacing unit. Everything that looks scattered still lands on it —
+     this is what separates deliberate disorder from a broken layout. */
+  --unit: 4px;
 }
 
 @theme inline {
@@ -54,25 +84,38 @@
   --font-mono: var(--font-geist-mono);
 
   /*
-    Tremor's own components (tooltips, cards, dropdowns) reference a
-    `tremor-*` design-token namespace that isn't defined anywhere by
-    default — Tailwind v4 silently drops any utility whose token is
-    missing, which is why the chart tooltip background rendered fully
-    transparent. Map every token Tremor references to this app's
-    existing light theme.
+    Brutalism has no rounded corners. Rather than hunt down every
+    `rounded-*` class across ~2,900 lines of components, zero the radius
+    scale itself: Tailwind v4 resolves `rounded-xl` to `--radius-xl`, so
+    redefining the scale retires soft corners everywhere at once.
+  */
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
+  --radius-4xl: 0px;
+
+  /*
+    Tremor's components reference a `tremor-*` token namespace that isn't
+    defined anywhere by default — Tailwind v4 silently drops any utility
+    whose token is missing, which is why the chart tooltip once rendered
+    fully transparent. Remap the whole namespace onto the dark theme.
   */
   --color-tremor-brand: var(--accent-500);
   --color-tremor-brand-default: var(--accent-500);
   --color-tremor-brand-emphasis: var(--accent-600);
-  --color-tremor-brand-inverted: #ffffff;
+  --color-tremor-brand-inverted: #0a0a0b;
   --color-tremor-brand-muted: var(--accent-100);
   --color-tremor-brand-subtle: var(--accent-100);
   --color-tremor-brand-faint: var(--accent-100);
 
-  --color-tremor-background-default: #ffffff;
-  --color-tremor-background-defualt: #ffffff;
-  --color-tremor-background-muted: var(--surface-0);
-  --color-tremor-background-subtle: var(--surface-0);
+  --color-tremor-background-default: var(--surface-1);
+  --color-tremor-background-defualt: var(--surface-1);
+  --color-tremor-background-muted: var(--surface-2);
+  --color-tremor-background-subtle: var(--surface-2);
   --color-tremor-background-emphasis: var(--text-secondary);
 
   --color-tremor-border-default: var(--line-hairline);
@@ -82,27 +125,222 @@
   --color-tremor-content-subtle: var(--text-muted);
   --color-tremor-content-emphasis: var(--text-primary);
   --color-tremor-content-strong: var(--text-primary);
-  --color-tremor-content-inverted: #ffffff;
+  --color-tremor-content-inverted: #0a0a0b;
 
-  --radius-tremor-small: 0.375rem;
-  --radius-tremor-default: 0.5rem;
-  --radius-tremor-full: 9999px;
+  --radius-tremor-small: 0px;
+  --radius-tremor-default: 0px;
+  --radius-tremor-full: 0px;
 
-  --shadow-tremor-card: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px -1px rgba(0,0,0,0.1);
-  --shadow-tremor-dropdown: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
-  --shadow-tremor-input: 0 1px 2px 0 rgba(0,0,0,0.05);
+  /* Hard 1px edges instead of blurred shadows. */
+  --shadow-tremor-card: 0 0 0 1px var(--line-hairline);
+  --shadow-tremor-dropdown: 0 0 0 1px var(--line-strong);
+  --shadow-tremor-input: 0 0 0 1px var(--line-hairline);
 
-  --text-tremor-label: 0.75rem;
-  --text-tremor-default: 0.875rem;
+  --text-tremor-label: 0.6875rem;
+  --text-tremor-default: 0.8125rem;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+  /*
+    The page texture: a faint diagonal hatch over a grid. It sits on the
+    body only — never behind a panel — so no text is ever read off it.
+  */
+  background-image:
+    repeating-linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.012) 0px,
+      rgba(255, 255, 255, 0.012) 1px,
+      transparent 1px,
+      transparent 7px
+    ),
+    linear-gradient(var(--line-hairline) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line-hairline) 1px, transparent 1px);
+  background-size: auto, 64px 64px, 64px 64px;
+  background-attachment: fixed;
+}
+
+/*
+  Zeroing the `--radius-*` scale above retires `rounded-xl`, `rounded-md` and
+  friends, but bare `rounded` and `rounded-full` do not read from that scale —
+  they carry their own literal values — so they are retired explicitly. These
+  come after the Tailwind import, so they win on source order.
+*/
+.rounded,
+.rounded-full {
+  border-radius: 0;
+}
+
+/* The grid is scenery; dial it back where content is dense. */
+.bg-plain {
+  background-image: none;
 }
 
 .font-data {
   font-family: var(--font-geist-mono), ui-monospace, "SF Mono", "JetBrains Mono", monospace;
   font-variant-numeric: tabular-nums;
+}
+
+/*
+  ── Brutalist primitives ────────────────────────────────────────────
+  Shared classes so the look is defined once here rather than re-typed
+  as inline styles in every component.
+*/
+
+/* A panel is a hard-edged box on a flat surface. No radius, no shadow. */
+.panel {
+  background: var(--surface-1);
+  border: 1px solid var(--line-hairline);
+}
+
+/* Marks the one panel that matters most on a screen. */
+.panel-accent {
+  border-color: var(--line-strong);
+  box-shadow: inset 3px 0 0 0 var(--accent-500);
+}
+
+/*
+  Section and field labels: small, uppercase, monospace, widely tracked.
+  This is what carries the "terminal" reading, and it stays legible
+  because it is never below 11px and never below 4.5:1.
+*/
+.label-mono {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.6875rem;
+  line-height: 1;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Bracketed index, e.g. [01] — structure made visible. */
+.index-mono::before {
+  content: "[";
+  color: var(--line-strong);
+}
+.index-mono::after {
+  content: "]";
+  color: var(--line-strong);
+}
+
+/* A full-width structural rule, heavier than a border. */
+.rule {
+  border: 0;
+  border-top: 1px solid var(--line-hairline);
+}
+.rule-strong {
+  border: 0;
+  border-top: 1px solid var(--line-strong);
+}
+
+/* Display figure: the number as a graphic object. */
+.figure {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  line-height: 0.95;
+}
+
+/*
+  The primary button. Text must be near-black, not white: white on this lime
+  measures 1.44:1, which is unreadable, while near-black measures 13.79:1.
+  Defined here so no call site can reintroduce `text-white` on the accent.
+*/
+.btn-accent {
+  background: var(--accent-500);
+  color: #0a0a0b;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.5rem 0.875rem;
+  border: 1px solid var(--accent-500);
+  transition: background 0.12s ease;
+}
+.btn-accent:hover:not(:disabled) {
+  background: var(--accent-600);
+}
+.btn-accent:disabled {
+  opacity: 0.45;
+}
+
+/* The quieter sibling: same geometry, outline only. */
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.5rem 0.875rem;
+  border: 1px solid var(--line-strong);
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+.btn-ghost:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+.btn-ghost:disabled {
+  opacity: 0.45;
+}
+
+/* Inputs and selects, unsoftened. */
+input,
+select,
+textarea {
+  background: var(--surface-0);
+  color: var(--text-primary);
+  border-color: var(--line-hairline);
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+}
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent-500);
+  outline-offset: 1px;
+}
+
+/* Checkboxes inherit the accent so they don't render as bright white boxes. */
+input[type="checkbox"] {
+  accent-color: var(--accent-500);
+}
+
+/* Scrollbars, so the dark frame isn't broken by a light gutter. */
+* {
+  scrollbar-color: var(--line-strong) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::selection {
+  background: var(--accent-500);
+  color: #0a0a0b;
+}
+
+/* Respect a user who has asked for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

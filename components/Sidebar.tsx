@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { usePersistentToggle } from "@/lib/use-persistent-toggle";
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: GaugeIcon },
@@ -12,24 +12,15 @@ const NAV_ITEMS = [
   { href: "/settings", label: "Settings", icon: SlidersIcon },
 ];
 
+// Same key and same "1"/"0" encoding the old inline implementation used, so an
+// existing collapsed preference carries over.
 const STORAGE_KEY = "claude-dashboard:sidebar-collapsed";
 
 export function Sidebar() {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (stored === "1") setCollapsed(true);
-    setHydrated(true);
-  }, []);
-
-  function toggleCollapsed() {
-    const next = !collapsed;
-    setCollapsed(next);
-    window.localStorage.setItem(STORAGE_KEY, next ? "1" : "0");
-  }
+  // Was a useState + useEffect pair that read localStorage after mount, which
+  // set state inside an effect and tripped react-hooks/set-state-in-effect.
+  const [collapsed, setCollapsed] = usePersistentToggle(STORAGE_KEY);
 
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
@@ -41,10 +32,13 @@ export function Sidebar() {
       className="relative flex h-screen flex-shrink-0 flex-col overflow-hidden"
       style={{ background: "var(--sidebar-bg)", borderRight: "1px solid var(--sidebar-border)" }}
     >
-      <div className="flex h-14 items-center gap-2.5 px-4">
+      <div
+        className="flex h-14 flex-shrink-0 items-center gap-2.5 px-4"
+        style={{ borderBottom: "1px solid var(--sidebar-border)" }}
+      >
         <div
-          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-xs font-bold text-white font-data"
-          style={{ background: "var(--accent-500)" }}
+          className="font-data flex h-7 w-7 flex-shrink-0 items-center justify-center text-xs font-bold"
+          style={{ background: "var(--accent-500)", color: "#0a0a0b" }}
         >
           C
         </div>
@@ -55,29 +49,29 @@ export function Sidebar() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
-              className="whitespace-nowrap text-sm font-semibold"
-              style={{ color: "var(--text-primary)" }}
+              className="font-data whitespace-nowrap text-xs font-semibold"
+              style={{ color: "var(--text-primary)", letterSpacing: "0.14em" }}
             >
-              Claude Usage
+              CLAUDE/USAGE
             </motion.span>
           )}
         </AnimatePresence>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-0.5 px-2 pt-2">
-        {NAV_ITEMS.map((item) => {
-          const active = hydrated && isActive(item.href);
+      <nav className="flex flex-1 flex-col pt-2">
+        {NAV_ITEMS.map((item, index) => {
+          const active = isActive(item.href);
           return (
             <Link
               key={item.href}
               href={item.href}
-              className="relative flex items-center gap-3 rounded-md px-2.5 py-2 text-sm transition-colors"
+              className="relative flex items-center gap-3 px-4 py-2.5 transition-colors"
               style={{ color: active ? "var(--sidebar-text-active)" : "var(--sidebar-text)" }}
             >
               {active && (
                 <motion.div
                   layoutId="sidebar-active-indicator"
-                  className="absolute inset-0 rounded-md"
+                  className="absolute inset-0"
                   style={{ background: "var(--sidebar-active-bg)" }}
                   transition={{ type: "spring", stiffness: 500, damping: 40 }}
                 />
@@ -85,7 +79,7 @@ export function Sidebar() {
               {active && (
                 <motion.div
                   layoutId="sidebar-active-bar"
-                  className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full"
+                  className="absolute left-0 top-0 bottom-0 w-[3px]"
                   style={{ background: "var(--accent-500)" }}
                   transition={{ type: "spring", stiffness: 500, damping: 40 }}
                 />
@@ -98,9 +92,16 @@ export function Sidebar() {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.15 }}
-                    className="relative z-10 whitespace-nowrap font-medium"
+                    className="font-data relative z-10 flex flex-1 items-baseline justify-between whitespace-nowrap text-xs"
+                    style={{ letterSpacing: "0.1em" }}
                   >
-                    {item.label}
+                    <span>{item.label.toUpperCase()}</span>
+                    <span
+                      className="index-mono text-[10px]"
+                      style={{ color: active ? "var(--accent-500)" : "var(--line-strong)" }}
+                    >
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
                   </motion.span>
                 )}
               </AnimatePresence>
@@ -110,9 +111,9 @@ export function Sidebar() {
       </nav>
 
       <button
-        onClick={toggleCollapsed}
-        className="flex items-center gap-3 px-4 py-3 text-xs transition-colors"
-        style={{ color: "var(--sidebar-text)", borderTop: "1px solid var(--sidebar-border)" }}
+        onClick={() => setCollapsed(!collapsed)}
+        className="label-mono flex flex-shrink-0 items-center gap-3 px-4 py-3 transition-colors"
+        style={{ borderTop: "1px solid var(--sidebar-border)" }}
       >
         <ChevronIcon className={`h-3.5 w-3.5 flex-shrink-0 transition-transform ${collapsed ? "rotate-180" : ""}`} />
         <AnimatePresence>

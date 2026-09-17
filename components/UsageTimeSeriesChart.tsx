@@ -20,8 +20,11 @@ interface ChartRow {
 }
 
 const CATEGORIES = ["Input", "Output", "Cache read", "Cache write"];
-const COLORS = ["blue", "orange", "emerald", "amber"];
-const LEGEND_SWATCHES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"];
+// Categorical set chosen for a near-black ground: each is a Tailwind 400
+// shade, all clear 4.5:1 on the panel surface, and the hues stay separable
+// for the common red/green colour deficiencies.
+const COLORS = ["lime", "cyan", "orange", "violet"];
+const LEGEND_SWATCHES = ["#a3e635", "#22d3ee", "#fb923c", "#a78bfa"];
 
 type StackMode = "absolute" | "percentage";
 

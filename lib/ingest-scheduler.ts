@@ -5,7 +5,7 @@ import { runAutoSwitchTick } from "./autoswitch-runner";
 const FIVE_MINUTES_MS = 5 * 60 * 1000;
 
 declare global {
-  // eslint-disable-next-line no-var
+  // `var` is required here: a global augmentation cannot use let/const.
   var __claudeDashboardIngestStarted: boolean | undefined;
 }
 

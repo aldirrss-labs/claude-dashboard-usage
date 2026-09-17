@@ -241,8 +241,7 @@ export function AutoSwitchPanel({ onSwitched, reloadKey }: { onSwitched: () => v
             whileTap={{ scale: 0.97 }}
             onClick={applyRecommendation}
             disabled={busy}
-            className="rounded px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-            style={{ background: "var(--accent-500)" }}
+            className="btn-accent"
           >
             {busy ? "Switching…" : `Switch to ${recommended.label}`}
           </motion.button>

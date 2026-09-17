@@ -8,7 +8,7 @@ interface ModelBreakdownRow {
   costUsd: number;
 }
 
-const SERIES_COLORS = ["blue", "orange", "emerald", "amber"];
+const SERIES_COLORS = ["lime", "cyan", "orange", "violet"];
 const OTHER_COLOR = "gray";
 
 const MAX_SERIES = 4;

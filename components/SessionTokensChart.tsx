@@ -22,7 +22,7 @@ export function SessionTokensChart({ sessions }: { sessions: SessionPoint[] }) {
       data={data}
       index="label"
       categories={["Tokens"]}
-      colors={["blue"]}
+      colors={["lime"]}
       valueFormatter={(v) => Math.round(v).toLocaleString()}
       className="h-36"
       showLegend={false}

@@ -170,8 +170,7 @@ export function AccountsTable({
             whileTap={{ scale: 0.97 }}
             onClick={handleSaveCurrentSession}
             disabled={saving || !newLabel.trim()}
-            className="rounded px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-            style={{ background: "var(--accent-500)" }}
+            className="btn-accent"
           >
             {saving ? "Saving…" : "Save current session"}
           </motion.button>

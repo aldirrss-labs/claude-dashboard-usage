@@ -5,6 +5,7 @@ import { AccountsTable, type AccountListItem } from "@/components/AccountsTable"
 import { AutoSwitchPanel } from "@/components/AutoSwitchPanel";
 import { BackupPanel } from "@/components/BackupPanel";
 import { MappingsPanel } from "@/components/MappingsPanel";
+import { PageHeader } from "@/components/Panel";
 import { formatRelativeTime } from "@/lib/format-usage";
 import { usePersistentToggle } from "@/lib/use-persistent-toggle";
 
@@ -82,37 +83,21 @@ export default function AccountsPage() {
 
   return (
     <main className="mx-auto max-w-5xl space-y-6 p-8">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
-            Accounts
-          </h1>
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            Store credentials for multiple Claude accounts on this machine, watch each one&apos;s
-            quota, and switch which is active.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 text-xs">
-          {lastFetched && (
-            <span style={{ color: "var(--text-muted)" }}>
-              quota {formatRelativeTime(lastFetched) ?? "just now"}
-            </span>
-          )}
-          <label className="flex items-center gap-1.5" style={{ color: "var(--text-muted)" }}>
-            <input type="checkbox" checked={watching} onChange={(e) => setWatching(e.target.checked)} />
-            Watch accounts
-          </label>
-          <button
-            onClick={() => refetch(true)}
-            disabled={refreshing}
-            className="font-medium hover:underline disabled:opacity-50"
-            style={{ color: "var(--accent-500)" }}
-          >
-            {refreshing ? "Refreshing…" : "Refresh usage"}
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        kicker={`${data.accounts.length} saved · quota ${lastFetched ? (formatRelativeTime(lastFetched) ?? "just now") : "not fetched"}`}
+        title="Accounts"
+        action={
+          <>
+            <label className="label-mono flex items-center gap-1.5">
+              <input type="checkbox" checked={watching} onChange={(e) => setWatching(e.target.checked)} />
+              Watch
+            </label>
+            <button onClick={() => refetch(true)} disabled={refreshing} className="btn-ghost">
+              {refreshing ? "Refreshing…" : "Refresh usage"}
+            </button>
+          </>
+        }
+      />
 
       <AutoSwitchPanel onSwitched={() => refetch(true)} reloadKey={reloadKey} />
       <AccountsTable accounts={data.accounts} live={data.live} onRefetch={() => refetch(true)} />
