@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: GaugeIcon },
   { href: "/projects", label: "Projects", icon: StackIcon },
+  { href: "/accounts", label: "Accounts", icon: SwapIcon },
   { href: "/settings", label: "Settings", icon: SlidersIcon },
 ];
 
@@ -166,6 +167,20 @@ function SlidersIcon({ className }: { className?: string }) {
       <circle cx="15" cy="6" r="2" fill="var(--sidebar-bg)" stroke="currentColor" strokeWidth="1.8" />
       <circle cx="19" cy="12" r="2" fill="var(--sidebar-bg)" stroke="currentColor" strokeWidth="1.8" />
       <circle cx="11" cy="18" r="2" fill="var(--sidebar-bg)" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
+function SwapIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className}>
+      <path
+        d="M4 7h13m0 0-3-3m3 3-3 3M20 17H7m0 0 3-3m-3 3 3 3"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
