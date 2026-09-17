@@ -18,8 +18,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Claude Code Usage Dashboard",
-  description: "Track Claude Code token usage across all local projects",
+  title: "Claude Rooms",
+  description: "Usage, projects, MCP servers and accounts for Claude Code on this machine",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

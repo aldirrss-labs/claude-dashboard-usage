@@ -10,7 +10,13 @@ import {
 // encrypted — there is no plaintext export path. scrypt derives the key from a
 // passphrase; AES-256-GCM gives confidentiality plus tamper detection, so a
 // truncated or edited file fails to open rather than importing garbage.
-export const EXPORT_FORMAT = "claude-dashboard-accounts";
+export const EXPORT_FORMAT = "claude-rooms-accounts";
+/**
+ * The identifier written before the rename. New exports carry the new name, but
+ * files already on disk carry this one — rejecting them would make a backup
+ * unrestorable, which is the one thing a backup must never be.
+ */
+export const LEGACY_EXPORT_FORMATS = ["claude-dashboard-accounts"] as const;
 export const EXPORT_VERSION = 1;
 
 const KEY_LENGTH = 32;
@@ -114,8 +120,9 @@ export function decryptExport(payload: unknown, passphrase: string): ExportedAcc
   }
   const obj = payload as Record<string, unknown>;
 
-  if (obj.format !== EXPORT_FORMAT) {
-    throw new MalformedExportError("Not a Claude dashboard account export.");
+  const accepted: readonly string[] = [EXPORT_FORMAT, ...LEGACY_EXPORT_FORMATS];
+  if (typeof obj.format !== "string" || !accepted.includes(obj.format)) {
+    throw new MalformedExportError("Not a Claude Rooms account export.");
   }
   if (obj.version !== EXPORT_VERSION) {
     throw new MalformedExportError(`Unsupported export version ${String(obj.version)}.`);

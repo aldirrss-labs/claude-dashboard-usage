@@ -11,7 +11,11 @@
 #
 set -euo pipefail
 
-SERVICE_NAME="claude-dashboard.service"
+SERVICE_NAME="claude-rooms.service"
+# The unit was called this before the project was renamed. Left installed it
+# would keep running the same server on the same port, so the new unit could
+# never bind — hence it is retired here rather than merely ignored.
+LEGACY_SERVICE_NAME="claude-dashboard.service"
 PORT="${PORT:-4317}"
 # Loopback by default: the dashboard has no authentication and, once accounts
 # are saved, the database holds live OAuth tokens. Set HOST=0.0.0.0 only if you
@@ -66,6 +70,13 @@ printf 'wrote   %s\n' "$unit_path"
 printf '  repo  %s\n' "$repo_root"
 printf '  node  %s (%s)\n' "$node_bin" "$("$node_bin" --version)"
 printf '  bind  %s:%s\n' "$HOST" "$PORT"
+
+legacy_unit="$unit_dir/$LEGACY_SERVICE_NAME"
+if [ -f "$legacy_unit" ]; then
+  systemctl --user disable --now "$LEGACY_SERVICE_NAME" >/dev/null 2>&1 || true
+  rm -f "$legacy_unit"
+  printf 'retired %s\n' "$legacy_unit"
+fi
 
 systemctl --user daemon-reload
 systemctl --user enable "$SERVICE_NAME"

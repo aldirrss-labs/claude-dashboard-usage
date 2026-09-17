@@ -87,6 +87,14 @@ describe("account export encryption", () => {
     assert.deepStrictEqual(decryptExport(encrypted, "pass phrase here"), SAMPLE);
   });
 
+  it("still opens an export written under the old product name", () => {
+    // A backup made before the rename must stay restorable; the format string
+    // is a compatibility contract, not branding.
+    const encrypted = encryptExport(SAMPLE, "pass phrase here");
+    const legacy = { ...encrypted, format: "claude-dashboard-accounts" };
+    assert.deepStrictEqual(decryptExport(legacy, "pass phrase here"), SAMPLE);
+  });
+
   it("rejects foreign or malformed files with a clear error", () => {
     assert.throws(() => decryptExport({ format: "something-else" }, "x"), MalformedExportError);
     assert.throws(() => decryptExport("not an object", "x"), MalformedExportError);

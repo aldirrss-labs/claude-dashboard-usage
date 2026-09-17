@@ -1,22 +1,54 @@
-# Claude Usage Dashboard
+# Claude Rooms
 
-A local web dashboard that tracks Claude Code token usage and cost across every project on this
-machine. It reads directly from `~/.claude/projects/*/*.jsonl` — the session logs Claude Code
-already writes — so there's nothing to configure on the Claude Code side.
+A local control room for Claude Code on this machine: what it costs, which projects it runs in,
+which accounts it runs as, and how it is configured. It reads directly from `~/.claude/` — the
+session logs, credentials and config Claude Code already writes — so there is nothing to set up on
+the Claude Code side.
 
-## Features
+Everything stays on the machine. There is no server component and no telemetry.
 
-- **Dashboard** — total tokens, estimated cost, active projects, cache efficiency, cache savings,
-  a projected monthly cost, a stacked usage-over-time chart, a model breakdown chart, and a
-  top-projects table with per-day sparklines.
-- **Projects** — every project detected on this machine, sortable by last active, tokens, cost,
-  session count, or name, with a week-over-week cost trend per project.
-- **Project detail** — per-session token history and a full session table, including which model
-  dominated each session.
-- **Settings** — editable per-model pricing (with a one-click sync from Anthropic's public pricing
-  page), a daily cost budget with an on-dashboard warning badge, and a daily email usage report.
-- **Manual sync** — a "Sync Now" button on the Dashboard and Projects pages triggers an immediate
-  re-scan on top of the automatic 5-minute background sync.
+## The five rooms
+
+| Room | What it is for |
+|---|---|
+| **Dashboard** | What Claude Code is costing you, and where the money actually goes |
+| **Projects** | Every project on this machine, and a full breakdown per project |
+| **MCP Marketplace** | Discover, install and manage MCP servers — *not built yet* |
+| **Accounts** | Several Claude logins on one machine: quota, switching, parallel sessions |
+| **Settings** | Pricing, budget, and the daily email report |
+
+### Dashboard
+
+Total tokens and cost, active projects, sessions and API calls, cache savings, busiest day and most
+expensive session. Then the breakdowns: usage over time, cost by model, **where the tokens go versus
+where the money goes** (they disagree sharply — cache reads dominate volume but not spend), models
+by project, a day-by-hour activity heatmap, and top projects.
+
+### Projects
+
+Every project detected on this machine, sortable by last active, tokens, cost, session count or
+name, with a week-over-week cost trend. Each project opens onto spend over time, splits by model,
+git branch and account, cost per session / message / active day, and a full session log with
+durations.
+
+### MCP Marketplace
+
+Planned. Claude Code keeps MCP server definitions in `~/.claude.json` and their OAuth tokens in
+`~/.claude/.credentials.json` — both files this app already reads and writes carefully (see
+`lib/account-swap-fields.ts`, which exists precisely to avoid clobbering MCP logins during an
+account switch). Managing servers from here is a natural extension rather than a bolt-on.
+
+### Accounts
+
+Store credentials for several Claude accounts and switch the active one in a click. Live quota per
+account (5h / 7d / per-model / spend) straight from Anthropic's OAuth usage endpoint, auto-switch
+with hysteresis and cooldown, per-directory account mapping, isolated parallel sessions, and
+encrypted backup/restore.
+
+### Settings
+
+Editable per-model pricing with a one-click sync from Anthropic's published table, a daily cost
+budget that raises a warning on the Dashboard, and a daily email usage report over Gmail SMTP.
 
 ## Getting started
 
@@ -40,7 +72,9 @@ See [`deploy/README.md`](deploy/README.md) for options, redeployment and uninsta
 
 ## How it works
 
-- **Storage**: SQLite at `~/.claude-dashboard/usage.db`, created automatically on first run and
+- **Storage**: SQLite at `~/.claude-dashboard/usage.db` — the directory keeps its original name
+  deliberately. Renaming it to match the product would orphan every existing database, and the only
+  thing gained is tidiness in a path nobody types. Created automatically on first run and
   untouched by app rebuilds or redeploys.
 - **Ingestion**: an in-process scheduler (`lib/ingest-scheduler.ts`) re-scans `~/.claude/projects/`
   every 5 minutes, tailing each `.jsonl` file from its last read byte offset so multi-MB logs

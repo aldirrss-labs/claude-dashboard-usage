@@ -52,7 +52,7 @@ export function Sidebar() {
               className="font-data whitespace-nowrap text-xs font-semibold"
               style={{ color: "var(--text-primary)", letterSpacing: "0.14em" }}
             >
-              CLAUDE/USAGE
+              CLAUDE/ROOMS
             </motion.span>
           )}
         </AnimatePresence>

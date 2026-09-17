@@ -23,8 +23,8 @@ independent of any terminal session.
   and separately checks that `postbuild` copied the static assets in (without them the page loads
   with every stylesheet and script 404ing, which is a confusing way to find out).
 
-The unit itself is generated from [`claude-dashboard.service.in`](claude-dashboard.service.in) into
-`~/.config/systemd/user/claude-dashboard.service`. The template is committed; the filled-in unit is
+The unit itself is generated from [`claude-rooms.service.in`](claude-rooms.service.in) into
+`~/.config/systemd/user/claude-rooms.service`. The template is committed; the filled-in unit is
 not, because its two most important values differ on every machine.
 
 ### Options
@@ -42,7 +42,7 @@ every one of them — anyone who can reach the port can read them and switch you
 
 ```bash
 npm run build
-systemctl --user restart claude-dashboard.service
+systemctl --user restart claude-rooms.service
 ```
 
 Re-run `deploy/install.sh` as well if you moved the repo, changed node version, or want a different
@@ -54,15 +54,15 @@ survives every redeploy.
 ## Checking on it
 
 ```bash
-systemctl --user status claude-dashboard.service
-journalctl --user -u claude-dashboard.service -f
+systemctl --user status claude-rooms.service
+journalctl --user -u claude-rooms.service -f
 ```
 
 ## Uninstalling
 
 ```bash
-systemctl --user disable --now claude-dashboard.service
-rm ~/.config/systemd/user/claude-dashboard.service
+systemctl --user disable --now claude-rooms.service
+rm ~/.config/systemd/user/claude-rooms.service
 systemctl --user daemon-reload
 loginctl disable-linger "$USER"   # optional
 ```
@@ -79,7 +79,7 @@ and saved account credentials gone.
 - **Page loads unstyled, console full of 404s**: the standalone build is missing its static assets.
   Run `npm run build` again — the `postbuild` script copies them — then restart the service.
 - **Stale data / ingestion not running**: check
-  `journalctl --user -u claude-dashboard.service` for `[ingest] cycle failed`. The scheduler runs
+  `journalctl --user -u claude-rooms.service` for `[ingest] cycle failed`. The scheduler runs
   every 5 minutes and retries on its own; one failed cycle does not stop the service.
 - **`node not found on PATH`**: if node comes from nvm, run the installer from an interactive shell
   where `node --version` works, since that is where the path is resolved from.

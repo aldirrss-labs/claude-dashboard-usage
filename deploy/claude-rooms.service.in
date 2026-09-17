@@ -8,7 +8,7 @@
 # then fails, rather than an error you can see.
 
 [Unit]
-Description=Claude Code Usage Dashboard
+Description=Claude Rooms
 After=network.target
 
 [Service]

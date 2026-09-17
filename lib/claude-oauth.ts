@@ -13,7 +13,7 @@ export const OAUTH_BETA_HEADER = "oauth-2025-04-20";
 // never races the expiry boundary.
 export const OAUTH_EXPIRY_BUFFER_MS = 5 * 60 * 1000;
 
-const USER_AGENT = "claude-dashboard-usage/1.0";
+const USER_AGENT = "claude-rooms/1.0";
 const REQUEST_TIMEOUT_MS = 15_000;
 
 /** The refresh-token lineage is dead — only a fresh `/login` fixes this. */
