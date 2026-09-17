@@ -8,6 +8,7 @@ import { usePersistentToggle } from "@/lib/use-persistent-toggle";
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: GaugeIcon },
   { href: "/projects", label: "Projects", icon: StackIcon },
+  { href: "/mcp", label: "MCP", icon: PlugIcon },
   { href: "/accounts", label: "Accounts", icon: SwapIcon },
   { href: "/settings", label: "Settings", icon: SlidersIcon },
 ];
@@ -177,6 +178,20 @@ function SwapIcon({ className }: { className?: string }) {
     <svg viewBox="0 0 24 24" fill="none" className={className}>
       <path
         d="M4 7h13m0 0-3-3m3 3-3 3M20 17H7m0 0 3-3m-3 3 3 3"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function PlugIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className}>
+      <path
+        d="M9 3v6M15 3v6M6 9h12v3a6 6 0 0 1-6 6 6 6 0 0 1-6-6V9ZM12 18v3"
         stroke="currentColor"
         strokeWidth="1.8"
         strokeLinecap="round"

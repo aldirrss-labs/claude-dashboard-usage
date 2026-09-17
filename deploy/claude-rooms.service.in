@@ -18,6 +18,9 @@ ExecStart=@NODE_BIN@ server.js
 Environment=PORT=@PORT@
 Environment=HOSTNAME=@HOST@
 Environment=NODE_ENV=production
+# The MCP room shells out to this; a user service gets no shell profile, so the
+# absolute path has to be baked in the same way node's is.
+Environment=CLAUDE_BIN=@CLAUDE_BIN@
 Restart=on-failure
 RestartSec=5
 # Next.js exits 143 (128+SIGTERM) on a normal stop; without this systemd logs

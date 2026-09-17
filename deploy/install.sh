@@ -55,6 +55,12 @@ node_bin=$(command -v node) || die "node not found on PATH"
 node_bin=$(readlink -f "$node_bin")
 [ -x "$node_bin" ] || die "resolved node is not executable: $node_bin"
 
+# The MCP room shells out to `claude`, which is not on a systemd user service's
+# PATH for the same reason node is not. Resolve it here; absence is a warning,
+# not an error, since every other room works without it.
+claude_bin=$(command -v claude 2>/dev/null || true)
+[ -n "$claude_bin" ] && claude_bin=$(readlink -f "$claude_bin")
+
 unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 mkdir -p "$unit_dir"
 unit_path="$unit_dir/$SERVICE_NAME"
@@ -64,12 +70,18 @@ sed \
   -e "s|@NODE_BIN@|$node_bin|g" \
   -e "s|@PORT@|$PORT|g" \
   -e "s|@HOST@|$HOST|g" \
+  -e "s|@CLAUDE_BIN@|${claude_bin:-claude}|g" \
   "$template" >"$unit_path"
 
 printf 'wrote   %s\n' "$unit_path"
 printf '  repo  %s\n' "$repo_root"
 printf '  node  %s (%s)\n' "$node_bin" "$("$node_bin" --version)"
 printf '  bind  %s:%s\n' "$HOST" "$PORT"
+if [ -n "$claude_bin" ]; then
+  printf '  claude %s\n' "$claude_bin"
+else
+  printf '  claude NOT FOUND — the MCP room will not be able to manage servers\n'
+fi
 
 legacy_unit="$unit_dir/$LEGACY_SERVICE_NAME"
 if [ -f "$legacy_unit" ]; then
