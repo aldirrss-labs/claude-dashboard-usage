@@ -7,9 +7,12 @@ export interface PricingSeed {
 }
 
 // Source of truth: https://platform.claude.com/docs/en/about-claude/pricing
-// (verified 2026-09-16). cache_write_price is the 5-minute write (1.25x input);
-// cache_read_price is 0.1x input on every model except Fable/Mythos 5.1, which
-// price cache hits at 0.025x input.
+// (verified 2026-10-19). cache_write_price is the 5-minute write (1.25x input);
+// cache_read_price is 0.1x input on most models, but Fable/Mythos 5.1 price
+// cache hits at 0.025x input and Opus/Sonnet 5.5 at 0.05x.
+//
+// Haiku 5.5 is deliberately absent: it is priced in two tiers by prompt length
+// (<=100K / >100K tokens), which a single flat row cannot represent.
 export const DEFAULT_PRICING: PricingSeed[] = [
   // Fable / Mythos tier
   { model: "claude-fable-5-1", input_price: 10, cache_write_price: 12.5, cache_read_price: 0.25, output_price: 50 },
@@ -18,6 +21,7 @@ export const DEFAULT_PRICING: PricingSeed[] = [
   { model: "claude-mythos-5", input_price: 10, cache_write_price: 12.5, cache_read_price: 1, output_price: 50 },
 
   // Opus tier
+  { model: "claude-opus-5-5", input_price: 4, cache_write_price: 5, cache_read_price: 0.2, output_price: 20 },
   { model: "claude-opus-5", input_price: 5, cache_write_price: 6.25, cache_read_price: 0.5, output_price: 25 },
   { model: "claude-opus-4-8", input_price: 5, cache_write_price: 6.25, cache_read_price: 0.5, output_price: 25 },
   { model: "claude-opus-4-7", input_price: 5, cache_write_price: 6.25, cache_read_price: 0.5, output_price: 25 },
@@ -27,6 +31,7 @@ export const DEFAULT_PRICING: PricingSeed[] = [
   { model: "claude-opus-4", input_price: 15, cache_write_price: 18.75, cache_read_price: 1.5, output_price: 75 },
 
   // Sonnet tier
+  { model: "claude-sonnet-5-5", input_price: 2, cache_write_price: 2.5, cache_read_price: 0.1, output_price: 10 },
   { model: "claude-sonnet-5", input_price: 2, cache_write_price: 2.5, cache_read_price: 0.2, output_price: 10 },
   { model: "claude-sonnet-4-6", input_price: 3, cache_write_price: 3.75, cache_read_price: 0.3, output_price: 15 },
   { model: "claude-sonnet-4-5", input_price: 3, cache_write_price: 3.75, cache_read_price: 0.3, output_price: 15 },
